@@ -1,0 +1,18 @@
+{
+  "name": "workstream",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "yarn workspace @workstream/backend start",
+    "start:frontend": "yarn workspace @workstream/frontend start",
+    "build": "yarn workspaces run build",
+    "test": "yarn workspaces run test"
+  },
+  "main": "index.js",
+  "repository": "git@github.com:vasyl-solutn/workstream.git",
+  "author": "vasyl-ws <vboychuk@glenflow.com>",
+  "license": "MIT"
+}

@@ -1,0 +1,50 @@
+name: Build and Deploy Workstream
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build packages
+        run: yarn build
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Build and push backend Docker image
+        run: |
+          cd packages/backend
+          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy workstream-backend \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend \
+            --platform managed \
+            --region us-central1 \
+            --allow-unauthenticated
+
+      - name: Deploy Frontend to Firebase
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          channelId: live
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
