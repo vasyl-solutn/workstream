@@ -31,6 +31,7 @@ jobs:
       - name: Build and push backend Docker image
         run: |
           cd packages/backend
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
           gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend
 
       - name: Deploy to Cloud Run
