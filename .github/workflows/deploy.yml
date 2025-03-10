@@ -22,22 +22,31 @@ jobs:
       - name: Build packages
         run: yarn build
 
+      - name: Check environment
+        run: |
+          echo "GitHub repository: $GITHUB_REPOSITORY"
+          echo "GitHub ref: $GITHUB_REF"
+          echo "Has GCP_PROJECT_ID secret: ${{ secrets.GCP_PROJECT_ID != '' }}"
+          echo "Has GCP_SA_KEY secret: ${{ secrets.GCP_SA_KEY != '' }}"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Debug project ID
-        run: echo "Project ID is ${{ secrets.GCP_PROJECT_ID }}"
 
       - name: Build and push backend Docker image
+        if: ${{ secrets.GCP_PROJECT_ID != '' }}
         run: |
           cd packages/backend
-          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
           gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend
 
       - name: Deploy to Cloud Run
+        if: ${{ secrets.GCP_PROJECT_ID != '' }}
         run: |
           gcloud run deploy workstream-backend \
             --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend \
