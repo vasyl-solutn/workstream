@@ -9,8 +9,8 @@ RUN yarn install --frozen-lockfile
 
 COPY packages/shared ./packages/shared
 COPY packages/backend ./packages/backend
-RUN yarn workspace @workstream/shared build
-RUN yarn workspace @workstream/backend build
+RUN yarn workspace shared build || yarn workspace @workstream/shared build
+RUN yarn workspace backend build || yarn workspace @workstream/backend build
 
 FROM node:18-alpine
 WORKDIR /app
