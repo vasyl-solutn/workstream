@@ -26,8 +26,8 @@ jobs:
         run: |
           echo "GitHub repository: $GITHUB_REPOSITORY"
           echo "GitHub ref: $GITHUB_REF"
-          echo "Has GCP_PROJECT_ID secret: ${{ secrets.GCP_PROJECT_ID != '' }}"
-          echo "Has GCP_SA_KEY secret: ${{ secrets.GCP_SA_KEY != '' }}"
+          echo "Has GCP_PROJECT_ID secret: ${{ secrets.GCP_PROJECT_ID != null }}"
+          echo "Has GCP_SA_KEY secret: ${{ secrets.GCP_SA_KEY != null }}"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -40,13 +40,13 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Build and push backend Docker image
-        if: ${{ secrets.GCP_PROJECT_ID != '' }}
+        if: secrets.GCP_PROJECT_ID != ''
         run: |
           cd packages/backend
           gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend
 
       - name: Deploy to Cloud Run
-        if: ${{ secrets.GCP_PROJECT_ID != '' }}
+        if: secrets.GCP_PROJECT_ID != ''
         run: |
           gcloud run deploy workstream-backend \
             --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend \
