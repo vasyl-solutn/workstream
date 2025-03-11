@@ -41,8 +41,8 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
-          cd packages/backend
-          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend .
+          # Build from the root directory
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend -f packages/backend/Dockerfile .
           docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend
 
       - name: Deploy to Cloud Run
