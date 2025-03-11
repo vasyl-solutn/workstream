@@ -32,12 +32,18 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Build and push backend Docker image
+      # Configure Docker to use gcloud as a credential helper
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker
+
+      # Build and push using Docker instead of Cloud Build
+      - name: Build and push Docker image
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           cd packages/backend
-          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend .
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/workstream-backend
 
       - name: Deploy to Cloud Run
         env:
