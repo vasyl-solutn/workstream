@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import './App.css'
+import { API_URL } from './config/api'
 
 function App() {
   const [message, setMessage] = useState('Loading...')
 
   useEffect(() => {
     // Replace with your actual API URL in production
-    fetch('http://localhost:8080')
+    fetch(`${API_URL}/your-endpoint`)
       .then(response => response.json())
       .then(data => setMessage(data.message))
       .catch(error => setMessage('Error connecting to API'))

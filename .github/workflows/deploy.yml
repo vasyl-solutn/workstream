@@ -20,6 +20,8 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Build packages
+        env:
+          VITE_API_URL: ${{ secrets.BACKEND_URL }}
         run: yarn build
 
       - name: Authenticate to Google Cloud
@@ -65,4 +67,6 @@ jobs:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           channelId: live
-          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+          projectId: '${{ secrets.FIREBASE_PROJECT_ID }}'
+          env:
+            VITE_API_URL: '${{ secrets.BACKEND_URL }}-firebase'
