@@ -44,6 +44,21 @@ workstream/
    echo "VITE_API_URL=http://localhost:8080" > packages/frontend/.env
    ```
 
+4. Set up Google Cloud authentication
+   ```bash
+   # Login with your Google account
+   gcloud auth login
+
+   # Set up application default credentials for local development
+   gcloud auth application-default login
+
+   # Set your project
+   gcloud config set project YOUR_PROJECT_ID
+
+   # Verify authentication is working
+   gcloud projects describe YOUR_PROJECT_ID
+   ```
+
 ### Running Locally
 
 1. Start the backend server
