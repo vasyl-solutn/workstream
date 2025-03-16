@@ -48,12 +48,12 @@ workstream/
 
 1. Start the backend server
    ```bash
-   yarn workspace @workstream/backend dev
+   yarn dev:backend
    ```
 
 2. In a new terminal, start the frontend application
    ```bash
-   yarn workspace @workstream/frontend dev
+   yarn dev:frontend
    ```
 
 3. Access the application
