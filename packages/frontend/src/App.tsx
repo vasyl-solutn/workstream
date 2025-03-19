@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import { API_URL } from './config/api'
-import { FaPlus, FaTrash, FaTimes } from 'react-icons/fa'
+import { FaPlus, FaTimes } from 'react-icons/fa'
 
 interface Item {
   id: string;
@@ -11,10 +11,22 @@ interface Item {
   createdAt: any;
 }
 
+interface FormData {
+  title: string;
+  estimation: number;
+  priority: number;
+}
+
 function App() {
   const [message, setMessage] = useState('Loading...')
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(false)
+  const [formData, setFormData] = useState<FormData>({
+    title: '',
+    estimation: 1,
+    priority: 2
+  })
+  const [showForm, setShowForm] = useState(false)
 
   // Fetch welcome message
   useEffect(() => {
@@ -43,28 +55,52 @@ function App() {
     }
   };
 
-  // Add a random item
-  const addRandomItem = async () => {
-    setLoading(true)
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: name === 'estimation' || name === 'priority' ? Number(value) : value
+    });
+  };
+
+  // Add a new item
+  const addItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.title.trim()) {
+      alert('Please enter a title');
+      return;
+    }
+
+    setLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({})
-      })
+        body: JSON.stringify(formData)
+      });
 
-      if (!response.ok) throw new Error('Failed to add item')
+      if (!response.ok) throw new Error('Failed to add item');
+
+      // Reset form and hide it
+      setFormData({
+        title: '',
+        estimation: 1,
+        priority: 2
+      });
+      setShowForm(false);
 
       // Refresh the list
-      fetchItems()
+      fetchItems();
     } catch (error) {
-      console.error('Error adding item:', error)
+      console.error('Error adding item:', error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   // Load items on initial render
   useEffect(() => {
@@ -144,18 +180,69 @@ function App() {
           <div className="card">
             <button
               className="add-button"
-              onClick={addRandomItem}
-              disabled={loading}
+              onClick={() => setShowForm(!showForm)}
             >
-              {loading ? 'Adding...' : <><FaPlus style={{marginRight: '8px'}} /> Add Random Item</>}
+              <FaPlus style={{marginRight: '8px'}} /> {showForm ? 'Cancel' : 'Add New Item'}
             </button>
           </div>
+
+          {showForm && (
+            <form className="item-form" onSubmit={addItem}>
+              <div className="form-group">
+                <label htmlFor="title">Title</label>
+                <input
+                  type="text"
+                  id="title"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  placeholder="Enter task title"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="estimation">Points</label>
+                <input
+                  type="number"
+                  id="estimation"
+                  name="estimation"
+                  min="1"
+                  max="10"
+                  value={formData.estimation}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="priority">Priority</label>
+                <select
+                  id="priority"
+                  name="priority"
+                  value={formData.priority}
+                  onChange={handleInputChange}
+                >
+                  <option value={1}>High</option>
+                  <option value={2}>Medium</option>
+                  <option value={3}>Low</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                className="submit-button"
+                disabled={loading}
+              >
+                {loading ? 'Adding...' : 'Submit'}
+              </button>
+            </form>
+          )}
         </header>
 
-        <main>
-          <h2>Items from Database</h2>
+        <section className="items-section">
+          <h2 className="section-title">Items from Database</h2>
           {items.length === 0 ? (
-            <p>No items yet. Add some by clicking the button above!</p>
+            <p className="no-items-message">No items yet. Add some by clicking the button above!</p>
           ) : (
             <ul className="items-list">
               {items.map(item => {
@@ -191,7 +278,7 @@ function App() {
               })}
             </ul>
           )}
-        </main>
+        </section>
       </div>
     </div>
   )

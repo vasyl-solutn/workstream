@@ -35,17 +35,20 @@ app.get('/api/test', async (req, res) => {
   }
 });
 
-// Add a random item to the database
+// Add a new item to the database
 app.post('/api/items', async (req, res) => {
   try {
-    const randomItem = {
-      title: `Task ${Math.floor(Math.random() * 1000)}`,
-      estimation: Math.floor(Math.random() * 10) + 1, // 1-10 hours
-      priority: Math.floor(Math.random() * 3) + 1, // 1-3 priority (1 = high)
+    const { title, estimation, priority } = req.body;
+
+    // Default values or use random if not provided
+    const newItem = {
+      title: title || `Task ${Math.floor(Math.random() * 1000)}`,
+      estimation: estimation !== undefined ? Number(estimation) : Math.floor(Math.random() * 10) + 1,
+      priority: priority !== undefined ? Number(priority) : Math.floor(Math.random() * 3) + 1,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
-    const docRef = await db.collection('items').add(randomItem);
+    const docRef = await db.collection('items').add(newItem);
 
     // Get the document after it's been created to include the server timestamp
     const doc = await docRef.get();
