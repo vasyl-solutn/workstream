@@ -123,6 +123,12 @@ function App() {
         return date.toLocaleString();
       }
 
+      // Handle the format with _seconds and _nanoseconds (from BE)
+      if (timestamp._seconds !== undefined && timestamp._nanoseconds !== undefined) {
+        const date = new Date(timestamp._seconds * 1000 + timestamp._nanoseconds / 1000000);
+        return date.toLocaleString();
+      }
+
       // Handle regular Date objects or ISO strings
       if (timestamp instanceof Date || typeof timestamp === 'string') {
         return new Date(timestamp).toLocaleString();

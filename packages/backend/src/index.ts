@@ -74,11 +74,9 @@ app.get('/api/items', async (req, res) => {
 
     const items = snapshot.docs.map(doc => {
       const data = doc.data();
-      // Ensure createdAt is properly formatted for JSON response
       return {
         id: doc.id,
         ...data,
-        // If createdAt exists, keep it as is (it will be serialized by Express)
       };
     });
 
