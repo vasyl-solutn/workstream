@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import './App.css'
 import { API_URL } from './config/api'
 import { FaPlus, FaTimes } from 'react-icons/fa'
+import Modal from './components/Modal'
+import { IoAdd, IoTrashOutline } from 'react-icons/io5'
 
 interface Item {
   id: string;
@@ -26,7 +28,7 @@ function App() {
     estimation: 1,
     priority: 2
   })
-  const [showForm, setShowForm] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Fetch welcome message
   useEffect(() => {
@@ -65,7 +67,7 @@ function App() {
   };
 
   // Add a new item
-  const addItem = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.title.trim()) {
@@ -73,30 +75,27 @@ function App() {
       return;
     }
 
-    setLoading(true);
     try {
+      setLoading(true);
       const response = await fetch(`${API_URL}/api/items`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
       });
 
-      if (!response.ok) throw new Error('Failed to add item');
+      if (!response.ok) {
+        throw new Error('Failed to add item');
+      }
 
-      // Reset form and hide it
-      setFormData({
-        title: '',
-        estimation: 1,
-        priority: 2
-      });
-      setShowForm(false);
-
-      // Refresh the list
-      fetchItems();
+      const newItem = await response.json();
+      setItems(prevItems => [...prevItems, newItem]);
+      setFormData({ title: '', estimation: 0, priority: 2 });
+      setIsModalOpen(false); // Close the modal after successful submission
     } catch (error) {
       console.error('Error adding item:', error);
+      alert('Failed to add item');
     } finally {
       setLoading(false);
     }
@@ -177,115 +176,97 @@ function App() {
   };
 
   return (
-    <div className="App">
-      <div className="container">
-        <header className="App-header">
-          <h1>Workstream</h1>
-          <p>{message}</p>
+    <div className="items-grid">
+      {items.map((item) => (
+        <article key={item.id} className="item-card">
+          <div className="item-content">
+            <div className="item-header">
+              <h3>{item.title}</h3>
+              <div className="item-actions">
+                <button
+                  className="icon-button add-sub-item"
+                  onClick={() => setIsModalOpen(true)}
+                  title="Add new item"
+                >
+                  <IoAdd />
+                </button>
+                <button
+                  className="icon-button delete-button"
+                  onClick={() => deleteItem(item.id)}
+                  title="Delete item"
+                >
+                  <IoTrashOutline />
+                </button>
+              </div>
+            </div>
+            <div className="item-details">
+              <span className="estimation">{item.estimation}p</span>
+              <span
+                className="priority"
+                style={{
+                  backgroundColor: getPriorityInfo(item.priority).color,
+                  color: 'white'
+                }}
+              >
+                {getPriorityInfo(item.priority).label}
+              </span>
+              <span className="date">{formatDate(item.createdAt)}</span>
+            </div>
+          </div>
+        </article>
+      ))}
 
-          <div className="card">
-            <button
-              className="add-button"
-              onClick={() => setShowForm(!showForm)}
-            >
-              <FaPlus style={{marginRight: '8px'}} /> {showForm ? 'Cancel' : 'Add New Item'}
-            </button>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+        <form onSubmit={handleSubmit} className="item-form">
+          <div className="form-group">
+            <label htmlFor="title">Title</label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              value={formData.title}
+              onChange={handleInputChange}
+              placeholder="Enter task title"
+              required
+            />
           </div>
 
-          {showForm && (
-            <form className="item-form" onSubmit={addItem}>
-              <div className="form-group">
-                <label htmlFor="title">Title</label>
-                <input
-                  type="text"
-                  id="title"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  placeholder="Enter task title"
-                  required
-                />
-              </div>
+          <div className="form-group">
+            <label htmlFor="estimation">Points</label>
+            <input
+              type="number"
+              id="estimation"
+              name="estimation"
+              min="1"
+              max="10"
+              value={formData.estimation}
+              onChange={handleInputChange}
+            />
+          </div>
 
-              <div className="form-group">
-                <label htmlFor="estimation">Points</label>
-                <input
-                  type="number"
-                  id="estimation"
-                  name="estimation"
-                  min="1"
-                  max="10"
-                  value={formData.estimation}
-                  onChange={handleInputChange}
-                />
-              </div>
+          <div className="form-group">
+            <label htmlFor="priority">Priority</label>
+            <select
+              id="priority"
+              name="priority"
+              value={formData.priority}
+              onChange={handleInputChange}
+            >
+              <option value={1}>High</option>
+              <option value={2}>Medium</option>
+              <option value={3}>Low</option>
+            </select>
+          </div>
 
-              <div className="form-group">
-                <label htmlFor="priority">Priority</label>
-                <select
-                  id="priority"
-                  name="priority"
-                  value={formData.priority}
-                  onChange={handleInputChange}
-                >
-                  <option value={1}>High</option>
-                  <option value={2}>Medium</option>
-                  <option value={3}>Low</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="submit-button"
-                disabled={loading}
-              >
-                {loading ? 'Adding...' : 'Submit'}
-              </button>
-            </form>
-          )}
-        </header>
-
-        <section className="items-section">
-          <h2 className="section-title">Items from Database</h2>
-          {items.length === 0 ? (
-            <p className="no-items-message">No items yet. Add some by clicking the button above!</p>
-          ) : (
-            <ul className="items-list">
-              {items.map(item => {
-                const priorityInfo = getPriorityInfo(item.priority);
-
-                return (
-                  <li key={item.id} className="item-card">
-                    <div className="item-header">
-                      <h3>{item.title}</h3>
-                      <div
-                        className="priority-badge"
-                        style={{ backgroundColor: priorityInfo.color }}
-                      >
-                        {priorityInfo.label}
-                      </div>
-                    </div>
-                    <div className="item-footer">
-                      <div className="item-info">
-                        <span className="estimation">Points: {item.estimation}</span>
-                        <small>Created: {formatDate(item.createdAt)}</small>
-                      </div>
-                      <button
-                        className="delete-btn"
-                        onClick={() => deleteItem(item.id)}
-                        disabled={loading}
-                        aria-label="Delete item"
-                      >
-                        <FaTimes />
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      </div>
+          <button
+            type="submit"
+            className="submit-button"
+            disabled={loading}
+          >
+            {loading ? 'Adding...' : 'Submit'}
+          </button>
+        </form>
+      </Modal>
     </div>
   )
 }
