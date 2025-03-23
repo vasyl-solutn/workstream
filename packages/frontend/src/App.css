@@ -18,7 +18,7 @@ html, body {
 .items-grid {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 4px;
   max-width: 600px;
   margin: 0 auto;
   padding: 24px;
@@ -119,14 +119,6 @@ main h2 {
   margin: 0;
   font-size: 18px;
   text-align: left;
-}
-
-.priority-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  color: white;
-  font-size: 12px;
-  font-weight: bold;
 }
 
 .item-card p {
@@ -367,13 +359,6 @@ h1, h2 {
   font-size: 13px;
 }
 
-.priority {
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
 .date {
   color: #888;
   font-size: 12px;
@@ -427,4 +412,109 @@ h1, h2 {
 
 .submit-button:hover {
   background-color: #0052a3;
+}
+
+.item-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.add-between-button {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #666;
+  opacity: 0;
+  transition: opacity 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.item-wrapper:hover .add-between-button,
+.add-between-button:hover {
+  opacity: 1;
+}
+
+.add-between-button:hover {
+  color: #0066cc;
+}
+
+.priority-row {
+  color: #666;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.item-card.selected {
+  border: 2px solid #0066cc;
+  background-color: #f0f7ff;
+}
+
+.paste-button {
+  color: #0066cc;
+  background: none;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 18px;
+  opacity: 0.8;
+  transition: all 0.2s ease;
+}
+
+.paste-button:hover {
+  background-color: rgba(0, 102, 204, 0.1);
+  opacity: 1;
+}
+
+.move-button:hover {
+  color: #0066cc;
+  background-color: rgba(0, 102, 204, 0.1);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-between-button {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.item-wrapper:hover .add-between-button {
+  opacity: 1;
+}
+
+.dot-button {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: #0066cc;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.dot-button:hover {
+  opacity: 1;
 }

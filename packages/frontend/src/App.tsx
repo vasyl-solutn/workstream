@@ -3,7 +3,7 @@ import './App.css'
 import { API_URL } from './config/api'
 import { FaPlus, FaTimes } from 'react-icons/fa'
 import Modal from './components/Modal'
-import { IoAdd, IoTrashOutline } from 'react-icons/io5'
+import { IoAdd, IoTrashOutline, IoMove, IoPasteOutline } from 'react-icons/io5'
 
 interface Item {
   id: string;
@@ -16,7 +16,6 @@ interface Item {
 interface FormData {
   title: string;
   estimation: number;
-  priority: number;
 }
 
 function App() {
@@ -25,10 +24,14 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     title: '',
-    estimation: 1,
-    priority: 2
+    estimation: 0
   })
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [currentContext, setCurrentContext] = useState<{
+    previousId: string | null;
+    nextId: string | null;
+  }>({ previousId: null, nextId: null });
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
 
   // Fetch welcome message
   useEffect(() => {
@@ -44,7 +47,7 @@ function App() {
   // Fetch all items
   const fetchItems = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/items`);
+      const response = await fetch(`${API_URL}/items`);
       if (!response.ok) throw new Error('Failed to fetch items');
       const data = await response.json();
 
@@ -62,7 +65,7 @@ function App() {
     const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: name === 'estimation' || name === 'priority' ? Number(value) : value
+      [name]: name === 'estimation' ? Number(value) : value
     });
   };
 
@@ -77,12 +80,17 @@ function App() {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/items`, {
+      const response = await fetch(`${API_URL}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          title: formData.title,
+          estimation: formData.estimation,
+          previousId: currentContext.previousId,
+          nextId: currentContext.nextId
+        }),
       });
 
       if (!response.ok) {
@@ -91,8 +99,9 @@ function App() {
 
       const newItem = await response.json();
       setItems(prevItems => [...prevItems, newItem]);
-      setFormData({ title: '', estimation: 0, priority: 2 });
-      setIsModalOpen(false); // Close the modal after successful submission
+      setFormData({ title: '', estimation: 0 });
+      setIsModalOpen(false);
+      setCurrentContext({ previousId: null, nextId: null }); // Reset context
     } catch (error) {
       console.error('Error adding item:', error);
       alert('Failed to add item');
@@ -160,7 +169,7 @@ function App() {
   const deleteItem = async (id: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/items/${id}`, {
+      const response = await fetch(`${API_URL}/items/${id}`, {
         method: 'DELETE'
       });
 
@@ -175,95 +184,160 @@ function App() {
     }
   };
 
+  const handleMove = async (previousId: string | null, nextId: string | null) => {
+    if (!selectedItem) return;
+
+    try {
+      const response = await fetch(`${API_URL}/items/${selectedItem}/move`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          previousId,
+          nextId,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to move item');
+
+      const updatedItem = await response.json();
+      setItems(prevItems =>
+        prevItems.map(item =>
+          item.id === selectedItem ? updatedItem : item
+        )
+      );
+      setSelectedItem(null); // Clear selection after move
+    } catch (error) {
+      console.error('Error moving item:', error);
+      alert('Failed to move item');
+    }
+  };
+
+  const sortedItems = [...items].sort((a, b) => a.priority - b.priority);
+
+  const handleAddBetween = (previousId: string | null, nextId: string | null) => {
+    setCurrentContext({ previousId, nextId });
+    setIsModalOpen(true);
+  };
+
+  const handleOutsideClick = (e: React.MouseEvent) => {
+    // Don't clear if clicking on move button, paste button, or selected item
+    if (
+      (e.target as HTMLElement).closest('.move-button') ||
+      (e.target as HTMLElement).closest('.paste-button') ||
+      (e.target as HTMLElement).closest('.selected')
+    ) {
+      return;
+    }
+    setSelectedItem(null);
+  };
+
   return (
-    <div className="items-grid">
-      {items.map((item) => (
-        <article key={item.id} className="item-card">
-          <div className="item-content">
-            <div className="item-header">
-              <h3>{item.title}</h3>
-              <div className="item-actions">
-                <button
-                  className="icon-button add-sub-item"
-                  onClick={() => setIsModalOpen(true)}
-                  title="Add new item"
-                >
-                  <IoAdd />
-                </button>
-                <button
-                  className="icon-button delete-button"
-                  onClick={() => deleteItem(item.id)}
-                  title="Delete item"
-                >
-                  <IoTrashOutline />
-                </button>
+    <div className="items-grid" onClick={handleOutsideClick}>
+      <div className="item-wrapper">
+        {!selectedItem ? (
+          <button
+            className="add-between-button"
+            onClick={() => handleAddBetween(null, sortedItems[0]?.id || null)}
+          >
+            <IoAdd />
+          </button>
+        ) : (
+          <button
+            className="dot-button"
+            onClick={() => handleMove(null, sortedItems[0]?.id || null)}
+            title="Paste here"
+          >
+            •
+          </button>
+        )}
+      </div>
+
+      {sortedItems.map((item, index) => (
+        <div key={item.id} className="item-wrapper">
+          <article className={`item-card ${selectedItem === item.id ? 'selected' : ''}`}>
+            <div className="item-content">
+              <div className="item-header">
+                <h3>{item.title}</h3>
+                <div className="item-actions">
+                  <button
+                    className="icon-button move-button"
+                    onClick={() => setSelectedItem(item.id)}
+                    disabled={selectedItem === item.id}
+                  >
+                    <IoMove />
+                  </button>
+                  <button
+                    className="icon-button delete-button"
+                    onClick={() => deleteItem(item.id)}
+                  >
+                    <IoTrashOutline />
+                  </button>
+                </div>
+              </div>
+              <div className="item-details">
+                <span className="estimation">{item.estimation}p</span>
+                <span className="date">{formatDate(item.createdAt)}</span>
+              </div>
+              <div className="priority-row">
+                {item.priority}
               </div>
             </div>
-            <div className="item-details">
-              <span className="estimation">{item.estimation}p</span>
-              <span
-                className="priority"
-                style={{
-                  backgroundColor: getPriorityInfo(item.priority).color,
-                  color: 'white'
-                }}
+          </article>
+
+          <div className="action-buttons">
+            {!selectedItem ? (
+              <button
+                className="add-between-button"
+                onClick={() => handleAddBetween(
+                  item.id,
+                  sortedItems[index + 1]?.id || null
+                )}
               >
-                {getPriorityInfo(item.priority).label}
-              </span>
-              <span className="date">{formatDate(item.createdAt)}</span>
-            </div>
+                <IoAdd />
+              </button>
+            ) : selectedItem !== item.id && (
+              <button
+                className="dot-button"
+                onClick={() => handleMove(item.id, sortedItems[index + 1]?.id || null)}
+                title="Paste here"
+              >
+                •
+              </button>
+            )}
           </div>
-        </article>
+        </div>
       ))}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
         <form onSubmit={handleSubmit} className="item-form">
           <div className="form-group">
-            <label htmlFor="title">Title</label>
+            <label htmlFor="title">Title:</label>
             <input
               type="text"
               id="title"
               name="title"
               value={formData.title}
               onChange={handleInputChange}
-              placeholder="Enter task title"
               required
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="estimation">Points</label>
+            <label htmlFor="estimation">Points:</label>
             <input
               type="number"
               id="estimation"
               name="estimation"
-              min="1"
-              max="10"
               value={formData.estimation}
               onChange={handleInputChange}
+              min="0"
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="priority">Priority</label>
-            <select
-              id="priority"
-              name="priority"
-              value={formData.priority}
-              onChange={handleInputChange}
-            >
-              <option value={1}>High</option>
-              <option value={2}>Medium</option>
-              <option value={3}>Low</option>
-            </select>
-          </div>
-
-          <button
-            type="submit"
-            className="submit-button"
-            disabled={loading}
-          >
-            {loading ? 'Adding...' : 'Submit'}
+          <button type="submit" className="submit-button">
+            Add Item
           </button>
         </form>
       </Modal>

@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { db } from './db';
 import * as admin from 'firebase-admin';
+import { Item, CreateItemDto } from './models/Item';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -36,15 +37,29 @@ app.get('/api/test', async (req, res) => {
 });
 
 // Add a new item to the database
-app.post('/api/items', async (req, res) => {
+app.post('/items', async (req, res) => {
   try {
-    const { title, estimation, priority } = req.body;
+    const { title, estimation, priority }: CreateItemDto = req.body;
+    const { previousId, nextId } = req.body;
 
-    // Default values or use random if not provided
-    const newItem = {
+    const previousItem = previousId ? await db.collection('items').doc(previousId).get() : null;
+    const nextItem = nextId ? await db.collection('items').doc(nextId).get() : null;
+
+    let newPriority;
+    if (previousItem && !nextItem) {
+      newPriority = previousItem.data()?.priority + Math.random();
+    } else if (!previousItem && nextItem) {
+      newPriority = nextItem.data()?.priority - Math.random();
+    } else if (previousItem && nextItem) {
+      newPriority = (previousItem.data()?.priority + nextItem.data()?.priority) / 2;
+    } else {
+      newPriority = Math.random();
+    }
+
+    const newItem: Omit<Item, 'id'> = {
       title: title || `Task ${Math.floor(Math.random() * 1000)}`,
       estimation: estimation !== undefined ? Number(estimation) : Math.floor(Math.random() * 10) + 1,
-      priority: priority !== undefined ? Number(priority) : Math.floor(Math.random() * 3) + 1,
+      priority: newPriority,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
@@ -66,19 +81,14 @@ app.post('/api/items', async (req, res) => {
 });
 
 // Get all items from the database
-app.get('/api/items', async (req, res) => {
+app.get('/items', async (req, res) => {
   try {
-    const snapshot = await db.collection('items')
-      .orderBy('createdAt', 'desc')
-      .get();
+    const snapshot = await db.collection('items').get();
 
-    const items = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-      };
-    });
+    const items = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
     res.json(items);
   } catch (error) {
@@ -88,7 +98,7 @@ app.get('/api/items', async (req, res) => {
 });
 
 // Delete an item from the database
-app.delete('/api/items/:id', async (req, res) => {
+app.delete('/items/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -98,6 +108,45 @@ app.delete('/api/items/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting item:', error);
     res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
+app.put('/items/:id/move', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { previousId, nextId } = req.body;
+
+    // Get the items for priority calculation
+    const prevItem = previousId ? (await db.collection('items').doc(previousId).get()).data() : null;
+    const nextItem = nextId ? (await db.collection('items').doc(nextId).get()).data() : null;
+
+    // Calculate new priority
+    let newPriority;
+    if (!prevItem) {
+      // Moving to the start
+      newPriority = nextItem ? nextItem.priority - 1 : 1;
+    } else if (!nextItem) {
+      // Moving to the end
+      newPriority = prevItem.priority + 1;
+    } else {
+      // Moving between two items
+      newPriority = (prevItem.priority + nextItem.priority) / 2;
+    }
+
+    // Update the item
+    await db.collection('items').doc(id).update({
+      priority: newPriority
+    });
+
+    // Get and return the updated item
+    const updatedDoc = await db.collection('items').doc(id).get();
+    res.json({
+      id: updatedDoc.id,
+      ...updatedDoc.data()
+    });
+  } catch (error) {
+    console.error('Error moving item:', error);
+    res.status(500).json({ error: 'Failed to move item' });
   }
 });
 
