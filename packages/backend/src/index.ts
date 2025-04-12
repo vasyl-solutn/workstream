@@ -1,8 +1,8 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { db } from './db';
 import * as admin from 'firebase-admin';
-import { CreateItemDto } from '@workstream/shared';
+import { CreateItemDto, Item } from '@workstream/shared';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -145,6 +145,36 @@ app.put('/items/:id/move', async (req, res) => {
     res.status(500).json({ error: 'Failed to move item' });
   }
 });
+
+// Update an item
+app.put('/items/:id', (async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, estimation, priority } = req.body as { title: string; estimation?: number; priority?: number };
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const updateData: Partial<Item> = {
+      title,
+      ...(estimation !== undefined && { estimation: Number(estimation) }),
+      ...(priority !== undefined && { priority: Number(priority) })
+    };
+
+    await db.collection('items').doc(id).update(updateData);
+
+    // Get and return the updated item
+    const updatedDoc = await db.collection('items').doc(id).get();
+    res.json({
+      id: updatedDoc.id,
+      ...updatedDoc.data()
+    });
+  } catch (error) {
+    console.error('Error updating item:', error);
+    res.status(500).json({ error: 'Failed to update item' });
+  }
+}) as express.RequestHandler);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

@@ -15,6 +15,7 @@ interface Timestamp {
 
 interface ExtendedItem extends Item {
   highlight?: boolean;
+  isEditing?: boolean;
 }
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
   }>({ previousId: null, nextId: null });
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [editingTitle, setEditingTitle] = useState('');
 
   // Fetch welcome message
   useEffect(() => {
@@ -244,6 +246,58 @@ function App() {
     setSelectedItem(null);
   };
 
+  const handleTitleEdit = (item: ExtendedItem) => {
+    setItems(prevItems =>
+      prevItems.map(i =>
+        i.id === item.id ? { ...i, isEditing: true } : i
+      )
+    );
+    setEditingTitle(item.title);
+  };
+
+  const handleTitleSave = async (item: ExtendedItem) => {
+    if (!editingTitle.trim()) {
+      alert('Title cannot be empty');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/items/${item.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: editingTitle,
+          estimation: item.estimation,
+          priority: item.priority
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update title');
+
+      setItems(prevItems =>
+        prevItems.map(i =>
+          i.id === item.id ? { ...i, title: editingTitle, isEditing: false } : i
+        )
+      );
+    } catch (error) {
+      console.error('Error updating title:', error);
+      alert('Failed to update title');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTitleCancel = (item: ExtendedItem) => {
+    setItems(prevItems =>
+      prevItems.map(i =>
+        i.id === item.id ? { ...i, isEditing: false } : i
+      )
+    );
+  };
+
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
       {isLoading && (
@@ -275,7 +329,29 @@ function App() {
           <article className={`item-card ${selectedItem === item.id ? 'selected' : ''} ${item.highlight ? 'highlight' : ''}`}>
             <div className="item-content">
               <div className="item-header">
-                <h3>{item.title}</h3>
+                {item.isEditing ? (
+                  <div className="title-edit">
+                    <input
+                      type="text"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleTitleSave(item);
+                        } else if (e.key === 'Escape') {
+                          handleTitleCancel(item);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <div className="edit-actions">
+                      <button onClick={() => handleTitleSave(item)}>Save</button>
+                      <button onClick={() => handleTitleCancel(item)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
+                )}
                 <div className="item-actions">
                   <button
                     className="icon-button move-button"
