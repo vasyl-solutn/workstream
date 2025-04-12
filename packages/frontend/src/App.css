@@ -140,6 +140,46 @@ main h2 {
 .estimation {
   color: #666;
   font-size: 12px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.estimation:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.estimation-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.estimation-edit input {
+  padding: 4px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  width: 60px;
+}
+
+.estimation-edit input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+.estimation-edit .edit-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.estimation-edit .edit-actions button {
+  padding: 2px 4px;
+  font-size: 10px;
+  border-radius: 3px;
 }
 
 .item-card small {
@@ -449,6 +489,46 @@ h1, h2 {
   color: #666;
   font-size: 12px;
   margin-top: 4px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.priority-row:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.priority-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.priority-edit input {
+  padding: 4px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  width: 60px;
+}
+
+.priority-edit input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}
+
+.priority-edit .edit-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.priority-edit .edit-actions button {
+  padding: 2px 4px;
+  font-size: 10px;
+  border-radius: 3px;
 }
 
 .item-card.selected {

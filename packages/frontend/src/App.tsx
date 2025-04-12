@@ -16,6 +16,7 @@ interface Timestamp {
 interface ExtendedItem extends Item {
   highlight?: boolean;
   isEditing?: boolean;
+  isEditingEstimation?: boolean;
 }
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
+  const [editingEstimation, setEditingEstimation] = useState(0);
 
   // Fetch welcome message
   useEffect(() => {
@@ -298,6 +300,53 @@ function App() {
     );
   };
 
+  const handleEstimationEdit = (item: ExtendedItem) => {
+    setItems(prevItems =>
+      prevItems.map(i =>
+        i.id === item.id ? { ...i, isEditingEstimation: true } : i
+      )
+    );
+    setEditingEstimation(item.estimation);
+  };
+
+  const handleEstimationSave = async (item: ExtendedItem) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/items/${item.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: item.title,
+          estimation: editingEstimation,
+          priority: item.priority
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update estimation');
+
+      setItems(prevItems =>
+        prevItems.map(i =>
+          i.id === item.id ? { ...i, estimation: editingEstimation, isEditingEstimation: false } : i
+        )
+      );
+    } catch (error) {
+      console.error('Error updating estimation:', error);
+      alert('Failed to update estimation');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEstimationCancel = (item: ExtendedItem) => {
+    setItems(prevItems =>
+      prevItems.map(i =>
+        i.id === item.id ? { ...i, isEditingEstimation: false } : i
+      )
+    );
+  };
+
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
       {isLoading && (
@@ -369,7 +418,29 @@ function App() {
                 </div>
               </div>
               <div className="item-details">
-                <span className="estimation">{item.estimation}p</span>
+                {item.isEditingEstimation ? (
+                  <div className="estimation-edit">
+                    <input
+                      type="number"
+                      value={editingEstimation}
+                      onChange={(e) => setEditingEstimation(Number(e.target.value))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleEstimationSave(item);
+                        } else if (e.key === 'Escape') {
+                          handleEstimationCancel(item);
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <div className="edit-actions">
+                      <button onClick={() => handleEstimationSave(item)}>Save</button>
+                      <button onClick={() => handleEstimationCancel(item)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="estimation" onClick={() => handleEstimationEdit(item)}>{item.estimation}p</span>
+                )}
                 <span className="date">{formatDate(item.createdAt)}</span>
               </div>
               <div className="priority-row">
