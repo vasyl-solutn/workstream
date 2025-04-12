@@ -7,7 +7,7 @@ export interface Item {
 }
 
 export interface CreateItemDto {
-  title?: string;
+  title: string;
   estimation?: number;
   priority?: number;
   previousId?: string | null;

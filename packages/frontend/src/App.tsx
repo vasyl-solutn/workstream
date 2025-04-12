@@ -3,12 +3,7 @@ import './App.css'
 import { API_URL } from './config/api'
 import Modal from './components/Modal'
 import { IoAdd, IoTrashOutline, IoMove } from 'react-icons/io5'
-import { Item } from '@workstream/shared'
-
-interface FormData {
-  title: string;
-  estimation: number;
-}
+import { Item, CreateItemDto } from '@workstream/shared'
 
 interface Timestamp {
   toDate?: () => Date;
@@ -25,9 +20,10 @@ interface ExtendedItem extends Item {
 function App() {
   const [message, setMessage] = useState('Loading...')
   const [items, setItems] = useState<ExtendedItem[]>([])
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState<CreateItemDto>({
     title: '',
-    estimation: 0
+    estimation: 0,
+    priority: 0
   })
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [currentContext, setCurrentContext] = useState<{
@@ -65,12 +61,12 @@ function App() {
   };
 
   // Handle form input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: name === 'estimation' ? Number(value) : value
-    });
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'estimation' || name === 'priority' ? Number(value) : value
+    }));
   };
 
   // Add a new item
@@ -90,8 +86,7 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          title: formData.title,
-          estimation: formData.estimation,
+          ...formData,
           previousId: currentContext.previousId,
           nextId: currentContext.nextId
         }),
@@ -104,7 +99,7 @@ function App() {
       const newItem = await response.json();
       const itemWithHighlight = { ...newItem, highlight: true };
       setItems(prevItems => [...prevItems, itemWithHighlight]);
-      setFormData({ title: '', estimation: 0 });
+      setFormData({ title: '', estimation: 0, priority: 0 });
       setIsModalOpen(false);
       setCurrentContext({ previousId: null, nextId: null });
 
