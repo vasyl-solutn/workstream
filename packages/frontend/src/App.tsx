@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import './App.css'
 import { API_URL } from './config/api'
-import { FaPlus, FaTimes } from 'react-icons/fa'
 import Modal from './components/Modal'
 import { IoAdd, IoTrashOutline, IoMove } from 'react-icons/io5'
-import { Item, CreateItemDto } from '@workstream/shared'
+import { Item } from '@workstream/shared'
 
 interface FormData {
   title: string;
@@ -172,6 +171,7 @@ function App() {
   // Delete an item
   const deleteItem = async (id: string | undefined) => {
     if (!id) return;
+    setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/items/${id}`, {
         method: 'DELETE'
@@ -183,6 +183,9 @@ function App() {
       setItems(prevItems => prevItems.filter(item => item.id !== id));
     } catch (error) {
       console.error('Error deleting item:', error);
+      alert('Failed to delete item');
+    } finally {
+      setIsLoading(false);
     }
   };
 
