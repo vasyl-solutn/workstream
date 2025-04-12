@@ -3,25 +3,29 @@ import './App.css'
 import { API_URL } from './config/api'
 import { FaPlus, FaTimes } from 'react-icons/fa'
 import Modal from './components/Modal'
-import { IoAdd, IoTrashOutline, IoMove, IoPasteOutline } from 'react-icons/io5'
-
-interface Item {
-  id: string;
-  title: string;
-  estimation: number;
-  priority: number;
-  createdAt: any;
-}
+import { IoAdd, IoTrashOutline, IoMove } from 'react-icons/io5'
+import { Item, CreateItemDto } from '@workstream/shared'
 
 interface FormData {
   title: string;
   estimation: number;
 }
 
+interface Timestamp {
+  toDate?: () => Date;
+  seconds?: number;
+  nanoseconds?: number;
+  _seconds?: number;
+  _nanoseconds?: number;
+}
+
+interface ExtendedItem extends Item {
+  highlight?: boolean;
+}
+
 function App() {
   const [message, setMessage] = useState('Loading...')
-  const [items, setItems] = useState<Item[]>([])
-  const [loading, setLoading] = useState(false)
+  const [items, setItems] = useState<ExtendedItem[]>([])
   const [formData, setFormData] = useState<FormData>({
     title: '',
     estimation: 0
@@ -79,7 +83,6 @@ function App() {
     }
 
     try {
-      setLoading(true);
       const response = await fetch(`${API_URL}/items`, {
         method: 'POST',
         headers: {
@@ -98,15 +101,24 @@ function App() {
       }
 
       const newItem = await response.json();
-      setItems(prevItems => [...prevItems, newItem]);
+      // Add highlight class to the new item
+      const itemWithHighlight = { ...newItem, highlight: true };
+      setItems(prevItems => [...prevItems, itemWithHighlight]);
       setFormData({ title: '', estimation: 0 });
       setIsModalOpen(false);
-      setCurrentContext({ previousId: null, nextId: null }); // Reset context
+      setCurrentContext({ previousId: null, nextId: null });
+
+      // Remove highlight class after animation completes
+      setTimeout(() => {
+        setItems(prevItems =>
+          prevItems.map(item =>
+            item.id === newItem.id ? { ...item, highlight: false } : item
+          )
+        );
+      }, 1500);
     } catch (error) {
       console.error('Error adding item:', error);
       alert('Failed to add item');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -116,24 +128,28 @@ function App() {
   }, [])
 
   // Format timestamp
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp: Timestamp | Date | string | null) => {
     if (!timestamp) return 'Just now';
 
     try {
       // Handle Firestore Timestamp objects (from Firestore SDK)
-      if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+      if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
         return timestamp.toDate().toLocaleString();
       }
 
       // Handle server timestamp objects (after JSON serialization)
-      if (timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
-        const date = new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+      if (typeof timestamp === 'object' && 'seconds' in timestamp && 'nanoseconds' in timestamp) {
+        const seconds = timestamp.seconds ?? 0;
+        const nanoseconds = timestamp.nanoseconds ?? 0;
+        const date = new Date(seconds * 1000 + nanoseconds / 1000000);
         return date.toLocaleString();
       }
 
       // Handle the format with _seconds and _nanoseconds (from BE)
-      if (timestamp._seconds !== undefined && timestamp._nanoseconds !== undefined) {
-        const date = new Date(timestamp._seconds * 1000 + timestamp._nanoseconds / 1000000);
+      if (typeof timestamp === 'object' && '_seconds' in timestamp && '_nanoseconds' in timestamp) {
+        const seconds = timestamp._seconds ?? 0;
+        const nanoseconds = timestamp._nanoseconds ?? 0;
+        const date = new Date(seconds * 1000 + nanoseconds / 1000000);
         return date.toLocaleString();
       }
 
@@ -151,23 +167,9 @@ function App() {
     }
   };
 
-  // Get priority label and color
-  const getPriorityInfo = (priority: number) => {
-    switch(priority) {
-      case 1:
-        return { label: 'High', color: '#d84315' };
-      case 2:
-        return { label: 'Medium', color: '#fb8c00' };
-      case 3:
-        return { label: 'Low', color: '#7cb342' };
-      default:
-        return { label: 'Unknown', color: '#9e9e9e' };
-    }
-  };
-
   // Delete an item
-  const deleteItem = async (id: string) => {
-    setLoading(true);
+  const deleteItem = async (id: string | undefined) => {
+    if (!id) return;
     try {
       const response = await fetch(`${API_URL}/items/${id}`, {
         method: 'DELETE'
@@ -179,8 +181,6 @@ function App() {
       setItems(prevItems => prevItems.filter(item => item.id !== id));
     } catch (error) {
       console.error('Error deleting item:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -222,10 +222,9 @@ function App() {
   };
 
   const handleOutsideClick = (e: React.MouseEvent) => {
-    // Don't clear if clicking on move button, paste button, or selected item
+    // Don't clear if clicking on move button or selected item
     if (
       (e.target as HTMLElement).closest('.move-button') ||
-      (e.target as HTMLElement).closest('.paste-button') ||
       (e.target as HTMLElement).closest('.selected')
     ) {
       return;
@@ -256,14 +255,14 @@ function App() {
 
       {sortedItems.map((item, index) => (
         <div key={item.id} className="item-wrapper">
-          <article className={`item-card ${selectedItem === item.id ? 'selected' : ''}`}>
+          <article className={`item-card ${selectedItem === item.id ? 'selected' : ''} ${item.highlight ? 'highlight' : ''}`}>
             <div className="item-content">
               <div className="item-header">
                 <h3>{item.title}</h3>
                 <div className="item-actions">
                   <button
                     className="icon-button move-button"
-                    onClick={() => setSelectedItem(item.id)}
+                    onClick={() => item.id && setSelectedItem(item.id)}
                     disabled={selectedItem === item.id}
                   >
                     <IoMove />
@@ -291,7 +290,7 @@ function App() {
               <button
                 className="add-between-button"
                 onClick={() => handleAddBetween(
-                  item.id,
+                  item.id || null,
                   sortedItems[index + 1]?.id || null
                 )}
               >
@@ -300,7 +299,7 @@ function App() {
             ) : selectedItem !== item.id && (
               <button
                 className="dot-button"
-                onClick={() => handleMove(item.id, sortedItems[index + 1]?.id || null)}
+                onClick={() => handleMove(item.id || null, sortedItems[index + 1]?.id || null)}
                 title="Paste here"
               >
                 •

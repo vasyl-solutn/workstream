@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { db } from './db';
 import * as admin from 'firebase-admin';
-import { Item, CreateItemDto } from './models/Item';
+import { CreateItemDto } from '@workstream/shared';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -39,8 +39,7 @@ app.get('/api/test', async (req, res) => {
 // Add a new item to the database
 app.post('/items', async (req, res) => {
   try {
-    const { title, estimation, priority }: CreateItemDto = req.body;
-    const { previousId, nextId } = req.body;
+    const { title, estimation, priority, previousId, nextId }: CreateItemDto = req.body;
 
     const previousItem = previousId ? await db.collection('items').doc(previousId).get() : null;
     const nextItem = nextId ? await db.collection('items').doc(nextId).get() : null;
@@ -56,7 +55,7 @@ app.post('/items', async (req, res) => {
       newPriority = Math.random();
     }
 
-    const newItem: Omit<Item, 'id'> = {
+    const newItem = {
       title: title || `Task ${Math.floor(Math.random() * 1000)}`,
       estimation: estimation !== undefined ? Number(estimation) : Math.floor(Math.random() * 10) + 1,
       priority: newPriority,
@@ -64,12 +63,9 @@ app.post('/items', async (req, res) => {
     };
 
     const docRef = await db.collection('items').add(newItem);
-
-    // Get the document after it's been created to include the server timestamp
     const doc = await docRef.get();
     const data = doc.data();
 
-    // Return the data with ID
     res.status(201).json({
       id: docRef.id,
       ...data

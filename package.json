@@ -10,7 +10,7 @@
     "start:frontend": "yarn workspace @workstream/frontend start",
     "dev:backend": "yarn workspace @workstream/backend dev",
     "dev:frontend": "yarn workspace @workstream/frontend dev",
-    "build": "yarn workspaces run build",
+    "build": "yarn workspace @workstream/shared build && yarn workspaces run build",
     "build:backend": "yarn workspace @workstream/backend build",
     "build:frontend": "yarn workspace @workstream/frontend build",
     "test": "yarn workspaces run test"

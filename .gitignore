@@ -29,3 +29,7 @@ yarn-error.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# TypeScript build info
+*.tsbuildinfo
+packages/*/tsconfig.*.tsbuildinfo
