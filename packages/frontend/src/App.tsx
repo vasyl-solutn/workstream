@@ -36,6 +36,7 @@ function App() {
     nextId: string | null;
   }>({ previousId: null, nextId: null });
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Fetch welcome message
   useEffect(() => {
@@ -82,6 +83,7 @@ function App() {
       return;
     }
 
+    setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/items`, {
         method: 'POST',
@@ -101,14 +103,12 @@ function App() {
       }
 
       const newItem = await response.json();
-      // Add highlight class to the new item
       const itemWithHighlight = { ...newItem, highlight: true };
       setItems(prevItems => [...prevItems, itemWithHighlight]);
       setFormData({ title: '', estimation: 0 });
       setIsModalOpen(false);
       setCurrentContext({ previousId: null, nextId: null });
 
-      // Remove highlight class after animation completes
       setTimeout(() => {
         setItems(prevItems =>
           prevItems.map(item =>
@@ -119,6 +119,8 @@ function App() {
     } catch (error) {
       console.error('Error adding item:', error);
       alert('Failed to add item');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -187,6 +189,7 @@ function App() {
   const handleMove = async (previousId: string | null, nextId: string | null) => {
     if (!selectedItem) return;
 
+    setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/items/${selectedItem}/move`, {
         method: 'PUT',
@@ -202,16 +205,14 @@ function App() {
       if (!response.ok) throw new Error('Failed to move item');
 
       const updatedItem = await response.json();
-      // Add highlight class to the moved item
       const itemWithHighlight = { ...updatedItem, highlight: true };
       setItems(prevItems =>
         prevItems.map(item =>
           item.id === selectedItem ? itemWithHighlight : item
         )
       );
-      setSelectedItem(null); // Clear selection after move
+      setSelectedItem(null);
 
-      // Remove highlight class after animation completes
       setTimeout(() => {
         setItems(prevItems =>
           prevItems.map(item =>
@@ -222,6 +223,8 @@ function App() {
     } catch (error) {
       console.error('Error moving item:', error);
       alert('Failed to move item');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -245,6 +248,11 @@ function App() {
 
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
+      {isLoading && (
+        <div className="loading-overlay">
+          <div className="loading-spinner"></div>
+        </div>
+      )}
       <div className="item-wrapper">
         {!selectedItem ? (
           <button
