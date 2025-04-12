@@ -202,12 +202,23 @@ function App() {
       if (!response.ok) throw new Error('Failed to move item');
 
       const updatedItem = await response.json();
+      // Add highlight class to the moved item
+      const itemWithHighlight = { ...updatedItem, highlight: true };
       setItems(prevItems =>
         prevItems.map(item =>
-          item.id === selectedItem ? updatedItem : item
+          item.id === selectedItem ? itemWithHighlight : item
         )
       );
       setSelectedItem(null); // Clear selection after move
+
+      // Remove highlight class after animation completes
+      setTimeout(() => {
+        setItems(prevItems =>
+          prevItems.map(item =>
+            item.id === selectedItem ? { ...item, highlight: false } : item
+          )
+        );
+      }, 1500);
     } catch (error) {
       console.error('Error moving item:', error);
       alert('Failed to move item');
