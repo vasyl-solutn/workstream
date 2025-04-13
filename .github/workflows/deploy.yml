@@ -68,6 +68,6 @@ jobs:
           projectId: '${{ secrets.FIREBASE_PROJECT_ID }}'
 
       - name: Deploy to Firebase
-        run: yarn deploy
+        run: npx firebase-tools deploy --only hosting --project ${{ secrets.FIREBASE_PROJECT_ID }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
