@@ -443,9 +443,6 @@ function App() {
                 )}
                 <span className="date">{formatDate(item.createdAt)}</span>
               </div>
-              <div className="priority-row">
-                {item.priority}
-              </div>
             </div>
           </article>
 
