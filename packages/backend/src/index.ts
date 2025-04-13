@@ -1,4 +1,4 @@
-import express, { Request, Response, RequestHandler } from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { db } from './db';
 import * as admin from 'firebase-admin';
@@ -37,7 +37,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 // Get all items
-app.get('/items', (async (req, res) => {
+app.get('/items', async (req: Request, res: Response) => {
   const startTime = performance.now();
   try {
     const snapshot = await db.collection('items').orderBy('priority').get();
@@ -52,10 +52,10 @@ app.get('/items', (async (req, res) => {
     console.error('Error fetching items:', error);
     res.status(500).json({ error: 'Failed to fetch items' });
   }
-}) as RequestHandler);
+});
 
 // Add a new item
-app.post('/items', (async (req, res) => {
+app.post('/items', async (req: Request<{}, {}, CreateItemDto>, res: Response) => {
   const startTime = performance.now();
   try {
     const { title, estimation, priority, previousId, nextId } = req.body;
@@ -138,14 +138,14 @@ app.post('/items', (async (req, res) => {
     console.error('Error adding item:', error);
     res.status(500).json({ error: 'Failed to add item' });
   }
-}) as RequestHandler);
+});
 
 // Update an item
-app.put('/items/:id', (async (req, res) => {
+app.put('/items/:id', async (req: Request<{ id: string }, {}, Partial<Item>>, res: Response) => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
-    const { title, estimation, priority } = req.body as { title: string; estimation?: number; priority?: number };
+    const { title, estimation, priority } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -176,10 +176,10 @@ app.put('/items/:id', (async (req, res) => {
     console.error('Error updating item:', error);
     res.status(500).json({ error: 'Failed to update item' });
   }
-}) as RequestHandler);
+});
 
 // Delete an item
-app.delete('/items/:id', (async (req, res) => {
+app.delete('/items/:id', async (req: Request<{ id: string }>, res: Response) => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
@@ -199,10 +199,10 @@ app.delete('/items/:id', (async (req, res) => {
     console.error('Error deleting item:', error);
     res.status(500).json({ error: 'Failed to delete item' });
   }
-}) as RequestHandler);
+});
 
 // Move an item
-app.put('/items/:id/move', (async (req, res) => {
+app.put('/items/:id/move', async (req: Request<{ id: string }, {}, { previousId?: string; nextId?: string }>, res: Response) => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
@@ -268,7 +268,7 @@ app.put('/items/:id/move', (async (req, res) => {
     console.error('Error moving item:', error);
     res.status(500).json({ error: 'Failed to move item' });
   }
-}) as RequestHandler);
+});
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);

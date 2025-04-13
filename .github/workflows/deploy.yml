@@ -8,21 +8,19 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'yarn'
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm install
 
-      - name: Build packages
-        env:
-          VITE_API_URL: ${{ secrets.BACKEND_URL }}
-        run: yarn build
+      - name: Build
+        run: npm run build
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -68,3 +66,8 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           channelId: live
           projectId: '${{ secrets.FIREBASE_PROJECT_ID }}'
+
+      - name: Deploy to Firebase
+        run: npm run deploy
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

@@ -6,14 +6,20 @@
     "packages/*"
   ],
   "scripts": {
-    "start": "yarn workspace @workstream/backend start",
-    "start:frontend": "yarn workspace @workstream/frontend start",
-    "dev:backend": "yarn workspace @workstream/backend dev",
-    "dev:frontend": "yarn workspace @workstream/frontend dev",
-    "build": "yarn workspace @workstream/shared build && yarn workspaces run build",
-    "build:backend": "yarn workspace @workstream/backend build",
-    "build:frontend": "yarn workspace @workstream/frontend build",
-    "test": "yarn workspaces run test"
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd packages/backend && npm run dev",
+    "dev:frontend": "cd packages/frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd packages/backend && npm run build",
+    "build:frontend": "cd packages/frontend && npm run build",
+    "start": "npm run start:backend",
+    "start:backend": "cd packages/backend && npm run start",
+    "deploy": "firebase-tools deploy --only hosting --project workstream-8a3b3",
+    "deploy:functions": "firebase-tools deploy --only functions --project workstream-8a3b3"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "firebase-tools": "13.12.0"
   },
   "main": "index.js",
   "repository": "git@github.com:vasyl-solutn/workstream.git",
