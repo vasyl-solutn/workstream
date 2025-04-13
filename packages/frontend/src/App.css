@@ -696,3 +696,16 @@ h1, h2 {
 .item-header h3:hover {
   background-color: rgba(0, 0, 0, 0.05);
 }
+
+.total-estimation {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}

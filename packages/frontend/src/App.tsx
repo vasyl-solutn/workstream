@@ -354,6 +354,9 @@ function App() {
           <div className="loading-spinner"></div>
         </div>
       )}
+      <div className="total-estimation">
+        Total: {items.reduce((sum, item) => sum + item.estimation, 0)}p
+      </div>
       <div className="item-wrapper">
         {!selectedItem ? (
           <button
