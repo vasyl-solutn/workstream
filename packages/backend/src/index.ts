@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, RequestHandler } from 'express';
 import cors from 'cors';
 import { db } from './db';
 import * as admin from 'firebase-admin';
@@ -36,118 +36,113 @@ app.get('/api/test', async (req, res) => {
   }
 });
 
-// Add a new item to the database
-app.post('/items', async (req, res) => {
+// Get all items
+app.get('/items', (async (req, res) => {
+  const startTime = performance.now();
   try {
-    const { title, estimation, priority, previousId, nextId }: CreateItemDto = req.body;
+    const snapshot = await db.collection('items').orderBy('priority').get();
+    const items = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    const endTime = performance.now();
+    console.info(`Database query took ${(endTime - startTime).toFixed(2)}ms`);
+    res.json(items);
+  } catch (error) {
+    console.error('Error fetching items:', error);
+    res.status(500).json({ error: 'Failed to fetch items' });
+  }
+}) as RequestHandler);
 
-    const previousItem = previousId ? await db.collection('items').doc(previousId).get() : null;
-    const nextItem = nextId ? await db.collection('items').doc(nextId).get() : null;
+// Add a new item
+app.post('/items', (async (req, res) => {
+  const startTime = performance.now();
+  try {
+    const { title, estimation, priority, previousId, nextId } = req.body;
 
-    let newPriority;
-    if (previousItem && !nextItem) {
-      newPriority = previousItem.data()?.priority + Math.random();
-    } else if (!previousItem && nextItem) {
-      newPriority = nextItem.data()?.priority - Math.random();
-    } else if (previousItem && nextItem) {
-      newPriority = (previousItem.data()?.priority + nextItem.data()?.priority) / 2;
-    } else {
-      newPriority = Math.random();
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
     }
 
-    const newItem = {
-      title: title || `Task ${Math.floor(Math.random() * 1000)}`,
-      estimation: estimation !== undefined ? Number(estimation) : Math.floor(Math.random() * 10) + 1,
-      priority: newPriority,
+    const itemData = {
+      title,
+      estimation: estimation || 0,
+      priority: priority || 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     };
 
-    const docRef = await db.collection('items').add(newItem);
-    const doc = await docRef.get();
-    const data = doc.data();
+    let newItem;
+    if (previousId && nextId) {
+      // Insert between two items
+      const [previousItem, nextItem] = await Promise.all([
+        db.collection('items').doc(previousId).get(),
+        db.collection('items').doc(nextId).get()
+      ]);
 
+      if (!previousItem.exists || !nextItem.exists) {
+        return res.status(404).json({ error: 'Previous or next item not found' });
+      }
+
+      const newPriority = (previousItem.data()?.priority + nextItem.data()?.priority) / 2;
+      newItem = await db.collection('items').add({
+        ...itemData,
+        priority: newPriority
+      });
+    } else if (previousId) {
+      // Insert after an item
+      const previousItem = await db.collection('items').doc(previousId).get();
+      if (!previousItem.exists) {
+        return res.status(404).json({ error: 'Previous item not found' });
+      }
+
+      const newPriority = previousItem.data()?.priority + 1;
+      newItem = await db.collection('items').add({
+        ...itemData,
+        priority: newPriority
+      });
+    } else if (nextId) {
+      // Insert before an item
+      const nextItem = await db.collection('items').doc(nextId).get();
+      if (!nextItem.exists) {
+        return res.status(404).json({ error: 'Next item not found' });
+      }
+
+      const newPriority = nextItem.data()?.priority - 1;
+      newItem = await db.collection('items').add({
+        ...itemData,
+        priority: newPriority
+      });
+    } else {
+      // Add to the end
+      const lastItem = await db.collection('items')
+        .orderBy('priority', 'desc')
+        .limit(1)
+        .get();
+
+      const newPriority = lastItem.empty ? 0 : lastItem.docs[0].data()?.priority + 1;
+      newItem = await db.collection('items').add({
+        ...itemData,
+        priority: newPriority
+      });
+    }
+
+    const endTime = performance.now();
+    console.info(`Database insert took ${(endTime - startTime).toFixed(2)}ms`);
+
+    const item = await newItem.get();
     res.status(201).json({
-      id: docRef.id,
-      ...data
+      id: item.id,
+      ...item.data()
     });
   } catch (error) {
     console.error('Error adding item:', error);
     res.status(500).json({ error: 'Failed to add item' });
   }
-});
-
-// Get all items from the database
-app.get('/items', async (req, res) => {
-  try {
-    const snapshot = await db.collection('items').get();
-
-    const items = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    res.json(items);
-  } catch (error) {
-    console.error('Error getting items:', error);
-    res.status(500).json({ error: 'Failed to get items' });
-  }
-});
-
-// Delete an item from the database
-app.delete('/items/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await db.collection('items').doc(id).delete();
-
-    res.status(200).json({ success: true, message: 'Item deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting item:', error);
-    res.status(500).json({ error: 'Failed to delete item' });
-  }
-});
-
-app.put('/items/:id/move', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { previousId, nextId } = req.body;
-
-    // Get the items for priority calculation
-    const prevItem = previousId ? (await db.collection('items').doc(previousId).get()).data() : null;
-    const nextItem = nextId ? (await db.collection('items').doc(nextId).get()).data() : null;
-
-    // Calculate new priority
-    let newPriority;
-    if (!prevItem) {
-      // Moving to the start
-      newPriority = nextItem ? nextItem.priority - 1 : 1;
-    } else if (!nextItem) {
-      // Moving to the end
-      newPriority = prevItem.priority + 1;
-    } else {
-      // Moving between two items
-      newPriority = (prevItem.priority + nextItem.priority) / 2;
-    }
-
-    // Update the item
-    await db.collection('items').doc(id).update({
-      priority: newPriority
-    });
-
-    // Get and return the updated item
-    const updatedDoc = await db.collection('items').doc(id).get();
-    res.json({
-      id: updatedDoc.id,
-      ...updatedDoc.data()
-    });
-  } catch (error) {
-    console.error('Error moving item:', error);
-    res.status(500).json({ error: 'Failed to move item' });
-  }
-});
+}) as RequestHandler);
 
 // Update an item
 app.put('/items/:id', (async (req, res) => {
+  const startTime = performance.now();
   try {
     const { id } = req.params;
     const { title, estimation, priority } = req.body as { title: string; estimation?: number; priority?: number };
@@ -156,25 +151,124 @@ app.put('/items/:id', (async (req, res) => {
       return res.status(400).json({ error: 'Title is required' });
     }
 
-    const updateData: Partial<Item> = {
+    const itemRef = db.collection('items').doc(id);
+    const item = await itemRef.get();
+
+    if (!item.exists) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    await itemRef.update({
       title,
-      ...(estimation !== undefined && { estimation: Number(estimation) }),
-      ...(priority !== undefined && { priority: Number(priority) })
-    };
+      ...(estimation !== undefined && { estimation }),
+      ...(priority !== undefined && { priority })
+    });
 
-    await db.collection('items').doc(id).update(updateData);
+    const endTime = performance.now();
+    console.info(`Database update took ${(endTime - startTime).toFixed(2)}ms`);
 
-    // Get and return the updated item
-    const updatedDoc = await db.collection('items').doc(id).get();
+    const updatedItem = await itemRef.get();
     res.json({
-      id: updatedDoc.id,
-      ...updatedDoc.data()
+      id: updatedItem.id,
+      ...updatedItem.data()
     });
   } catch (error) {
     console.error('Error updating item:', error);
     res.status(500).json({ error: 'Failed to update item' });
   }
-}) as express.RequestHandler);
+}) as RequestHandler);
+
+// Delete an item
+app.delete('/items/:id', (async (req, res) => {
+  const startTime = performance.now();
+  try {
+    const { id } = req.params;
+    const itemRef = db.collection('items').doc(id);
+    const item = await itemRef.get();
+
+    if (!item.exists) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    await itemRef.delete();
+    const endTime = performance.now();
+    console.info(`Database delete took ${(endTime - startTime).toFixed(2)}ms`);
+
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting item:', error);
+    res.status(500).json({ error: 'Failed to delete item' });
+  }
+}) as RequestHandler);
+
+// Move an item
+app.put('/items/:id/move', (async (req, res) => {
+  const startTime = performance.now();
+  try {
+    const { id } = req.params;
+    const { previousId, nextId } = req.body;
+
+    const itemRef = db.collection('items').doc(id);
+    const item = await itemRef.get();
+
+    if (!item.exists) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    let newPriority;
+
+    if (previousId && nextId) {
+      // Move between two items
+      const [previousItem, nextItem] = await Promise.all([
+        db.collection('items').doc(previousId).get(),
+        db.collection('items').doc(nextId).get()
+      ]);
+
+      if (!previousItem.exists || !nextItem.exists) {
+        return res.status(404).json({ error: 'Previous or next item not found' });
+      }
+
+      newPriority = (previousItem.data()?.priority + nextItem.data()?.priority) / 2;
+    } else if (previousId) {
+      // Move after an item
+      const previousItem = await db.collection('items').doc(previousId).get();
+      if (!previousItem.exists) {
+        return res.status(404).json({ error: 'Previous item not found' });
+      }
+
+      newPriority = previousItem.data()?.priority + 1;
+    } else if (nextId) {
+      // Move before an item
+      const nextItem = await db.collection('items').doc(nextId).get();
+      if (!nextItem.exists) {
+        return res.status(404).json({ error: 'Next item not found' });
+      }
+
+      newPriority = nextItem.data()?.priority - 1;
+    } else {
+      // Move to the beginning
+      const firstItem = await db.collection('items')
+        .orderBy('priority')
+        .limit(1)
+        .get();
+
+      newPriority = firstItem.empty ? 0 : firstItem.docs[0].data()?.priority - 1;
+    }
+
+    await itemRef.update({ priority: newPriority });
+    const endTime = performance.now();
+    console.info(`Database move took ${(endTime - startTime).toFixed(2)}ms`);
+
+    const updatedItem = await itemRef.get();
+    res.json({
+      id: updatedItem.id,
+      ...updatedItem.data()
+    });
+  } catch (error) {
+    console.error('Error moving item:', error);
+    res.status(500).json({ error: 'Failed to move item' });
+  }
+}) as RequestHandler);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
