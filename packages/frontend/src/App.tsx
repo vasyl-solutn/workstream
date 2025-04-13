@@ -76,8 +76,7 @@ function App() {
   // Add a new item
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!formData.title.trim()) {
+    if (!formData.title?.trim()) {
       alert('Please enter a title');
       return;
     }
