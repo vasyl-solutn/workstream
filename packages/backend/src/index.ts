@@ -1,8 +1,14 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, RequestHandler } from 'express';
 import cors from 'cors';
 import { db } from './db';
 import * as admin from 'firebase-admin';
 import { CreateItemDto, Item } from '@workstream/shared';
+import { ParamsDictionary } from 'express-serve-static-core';
+
+type AsyncRequestHandler<P = ParamsDictionary, ResBody = any, ReqBody = any> = (
+  req: Request<P, ResBody, ReqBody>,
+  res: Response
+) => Promise<void>;
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -55,7 +61,7 @@ app.get('/items', async (req: Request, res: Response) => {
 });
 
 // Add a new item
-app.post('/items', async (req: Request<{}, {}, CreateItemDto>, res: Response) => {
+app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto>, res: Response) => {
   const startTime = performance.now();
   try {
     const { title, estimation, priority, previousId, nextId } = req.body;
@@ -138,10 +144,10 @@ app.post('/items', async (req: Request<{}, {}, CreateItemDto>, res: Response) =>
     console.error('Error adding item:', error);
     res.status(500).json({ error: 'Failed to add item' });
   }
-});
+}) as AsyncRequestHandler<ParamsDictionary, any, CreateItemDto>);
 
 // Update an item
-app.put('/items/:id', async (req: Request<{ id: string }, {}, Partial<Item>>, res: Response) => {
+app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, any, Partial<Item>>, res: Response) => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
@@ -176,10 +182,10 @@ app.put('/items/:id', async (req: Request<{ id: string }, {}, Partial<Item>>, re
     console.error('Error updating item:', error);
     res.status(500).json({ error: 'Failed to update item' });
   }
-});
+}) as AsyncRequestHandler<ParamsDictionary & { id: string }, any, Partial<Item>>);
 
 // Delete an item
-app.delete('/items/:id', async (req: Request<{ id: string }>, res: Response) => {
+app.delete('/items/:id', (async (req: Request<ParamsDictionary & { id: string }>, res: Response) => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
@@ -199,10 +205,10 @@ app.delete('/items/:id', async (req: Request<{ id: string }>, res: Response) => 
     console.error('Error deleting item:', error);
     res.status(500).json({ error: 'Failed to delete item' });
   }
-});
+}) as AsyncRequestHandler<ParamsDictionary & { id: string }>);
 
 // Move an item
-app.put('/items/:id/move', async (req: Request<{ id: string }, {}, { previousId?: string; nextId?: string }>, res: Response) => {
+app.put('/items/:id/move', (async (req: Request<ParamsDictionary & { id: string }, any, { previousId?: string; nextId?: string }>, res: Response) => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
@@ -268,7 +274,7 @@ app.put('/items/:id/move', async (req: Request<{ id: string }, {}, { previousId?
     console.error('Error moving item:', error);
     res.status(500).json({ error: 'Failed to move item' });
   }
-});
+}) as AsyncRequestHandler<ParamsDictionary & { id: string }, any, { previousId?: string; nextId?: string }>);
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
