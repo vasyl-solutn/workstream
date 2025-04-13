@@ -14,13 +14,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: 'yarn'
 
       - name: Install dependencies
-        run: npm install
+        run: yarn install
 
       - name: Build
-        run: npm run build
+        run: yarn build
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -68,6 +68,6 @@ jobs:
           projectId: '${{ secrets.FIREBASE_PROJECT_ID }}'
 
       - name: Deploy to Firebase
-        run: npm run deploy
+        run: yarn deploy
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
