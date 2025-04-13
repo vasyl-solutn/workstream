@@ -15,8 +15,8 @@
     "build:frontend": "cd packages/frontend && yarn build",
     "start": "yarn start:backend",
     "start:backend": "cd packages/backend && yarn start",
-    "deploy": "firebase-tools deploy --only hosting --project workstream-8a3b3",
-    "deploy:functions": "firebase-tools deploy --only functions --project workstream-8a3b3"
+    "deploy": "npx firebase-tools deploy --only hosting --project workstream-8a3b3",
+    "deploy:functions": "npx firebase-tools deploy --only functions --project workstream-8a3b3"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
