@@ -21,7 +21,7 @@ jobs:
 
       - name: Build
         env:
-          VITE_API_URL: https://workstream-backend-${{ secrets.GCP_PROJECT_ID }}-uc.a.run.app
+          VITE_API_URL: ${{ secrets.BACKEND_URL }}
         run: yarn build
 
       - name: Authenticate to Google Cloud
