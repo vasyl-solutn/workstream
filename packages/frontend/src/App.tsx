@@ -29,12 +29,23 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
   const [editingEstimation, setEditingEstimation] = useState(0);
+  const [completedTimerId, setCompletedTimerId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize audio
   useEffect(() => {
     audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
   }, []);
+
+  // Reset completion animation after it finishes
+  useEffect(() => {
+    if (completedTimerId) {
+      const timer = setTimeout(() => {
+        setCompletedTimerId(null);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [completedTimerId]);
 
   // Timer effect
   useEffect(() => {
@@ -47,6 +58,37 @@ function App() {
             if (audioRef.current) {
               audioRef.current.play().catch(error => console.log('Audio play failed:', error));
             }
+            if (item.id) {
+              setCompletedTimerId(item.id);
+            }
+            // Update estimation in backend
+            const updateEstimation = async () => {
+              try {
+                const response = await fetch(`${API_URL}/items/${item.id}`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    title: item.title,
+                    estimation: Math.ceil((item.remainingSeconds || 0) / 60), // Convert back to minutes
+                    priority: item.priority
+                  }),
+                });
+
+                if (!response.ok) throw new Error('Failed to update estimation');
+
+                const updatedItem = await response.json();
+                setItems(prevItems =>
+                  prevItems.map(i =>
+                    i.id === item.id ? { ...i, isRunning: false, estimation: updatedItem.estimation } : i
+                  )
+                );
+              } catch (error) {
+                console.error('Error updating estimation:', error);
+              }
+            };
+            updateEstimation();
             return { ...item, isRunning: false };
           }
           return item;
@@ -415,7 +457,10 @@ function App() {
                       </div>
                     ) : (
                       <div className="timer-container">
-                        <span className="estimation" onClick={() => handleEstimationEdit(item)}>
+                        <span
+                          className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
+                          onClick={() => handleEstimationEdit(item)}
+                        >
                           {item.isRunning ? formatTime(item.remainingSeconds || 0) : item.estimation}
                         </span>
                         {!item.isRunning ? (
