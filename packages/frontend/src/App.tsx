@@ -5,14 +5,6 @@ import Modal from './components/Modal'
 import { IoAdd, IoTrashOutline, IoMove } from 'react-icons/io5'
 import { Item, CreateItemDto } from '@workstream/shared'
 
-interface Timestamp {
-  toDate?: () => Date;
-  seconds?: number;
-  nanoseconds?: number;
-  _seconds?: number;
-  _nanoseconds?: number;
-}
-
 interface ExtendedItem extends Item {
   highlight?: boolean;
   isEditing?: boolean;
@@ -125,46 +117,6 @@ function App() {
   useEffect(() => {
     fetchItems()
   }, [])
-
-  // Format timestamp
-  const formatDate = (timestamp: Timestamp | Date | string | null) => {
-    if (!timestamp) return 'Just now';
-
-    try {
-      // Handle Firestore Timestamp objects (from Firestore SDK)
-      if (typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
-        return timestamp.toDate().toLocaleString();
-      }
-
-      // Handle server timestamp objects (after JSON serialization)
-      if (typeof timestamp === 'object' && 'seconds' in timestamp && 'nanoseconds' in timestamp) {
-        const seconds = timestamp.seconds ?? 0;
-        const nanoseconds = timestamp.nanoseconds ?? 0;
-        const date = new Date(seconds * 1000 + nanoseconds / 1000000);
-        return date.toLocaleString();
-      }
-
-      // Handle the format with _seconds and _nanoseconds (from BE)
-      if (typeof timestamp === 'object' && '_seconds' in timestamp && '_nanoseconds' in timestamp) {
-        const seconds = timestamp._seconds ?? 0;
-        const nanoseconds = timestamp._nanoseconds ?? 0;
-        const date = new Date(seconds * 1000 + nanoseconds / 1000000);
-        return date.toLocaleString();
-      }
-
-      // Handle regular Date objects or ISO strings
-      if (timestamp instanceof Date || typeof timestamp === 'string') {
-        return new Date(timestamp).toLocaleString();
-      }
-
-      // For debugging
-      console.log('Unknown timestamp format:', timestamp);
-      return 'Unknown date format';
-    } catch (error) {
-      console.error('Error formatting date:', error, timestamp);
-      return 'Date error';
-    }
-  };
 
   // Delete an item
   const deleteItem = async (id: string | undefined) => {
@@ -354,7 +306,7 @@ function App() {
         </div>
       )}
       <div className="total-estimation">
-        Total: {items.reduce((sum, item) => sum + item.estimation, 0)}p
+        Total: {items.reduce((sum, item) => sum + item.estimation, 0)}
       </div>
       <div className="item-wrapper">
         {!selectedItem ? (
@@ -441,9 +393,8 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <span className="estimation" onClick={() => handleEstimationEdit(item)}>{item.estimation}p</span>
+                  <span className="estimation" onClick={() => handleEstimationEdit(item)}>{item.estimation}</span>
                 )}
-                <span className="date">{formatDate(item.createdAt)}</span>
               </div>
             </div>
           </article>

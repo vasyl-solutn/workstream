@@ -172,6 +172,8 @@ main h2 {
   border-radius: 4px;
   font-size: 12px;
   width: 60px;
+  background-color: white;
+  color: #333;
 }
 
 .estimation-edit input:focus {
@@ -521,6 +523,8 @@ h1, h2 {
   border-radius: 4px;
   font-size: 12px;
   width: 60px;
+  background-color: white;
+  color: #333;
 }
 
 .priority-edit input:focus {
@@ -670,6 +674,8 @@ h1, h2 {
   border-radius: 4px;
   font-size: 16px;
   width: 100%;
+  background-color: white;
+  color: #333;
 }
 
 .title-edit input:focus {
