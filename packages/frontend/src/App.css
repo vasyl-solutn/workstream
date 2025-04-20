@@ -129,6 +129,30 @@ main h2 {
   margin: 0;
   font-size: 18px;
   text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.item-header .estimation {
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s ease;
+  min-width: 40px;
+  text-align: center;
+}
+
+.item-header .estimation:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.item-header .estimation.running {
+  color: #4CAF50;
+  background-color: rgba(76, 175, 80, 0.1);
 }
 
 .item-card p {
@@ -340,10 +364,10 @@ h1, h2 {
 
 .item-details {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
-  font-size: 14px;
-  color: #666;
+  flex-wrap: wrap;
+  font-size: 13px;
 }
 
 .items-section {
@@ -401,14 +425,6 @@ h1, h2 {
 .delete-button:hover {
   color: #ff4444;
   background-color: rgba(255, 68, 68, 0.1);
-}
-
-.item-details {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  font-size: 13px;
 }
 
 .date {
@@ -729,4 +745,32 @@ h1, h2 {
   font-weight: 500;
   color: #333;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.timer-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timer-button {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.timer-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+.timer-button.running {
+  color: #4CAF50;
 }

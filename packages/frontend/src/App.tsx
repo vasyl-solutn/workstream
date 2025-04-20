@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './App.css'
 import { API_URL } from './config/api'
 import Modal from './components/Modal'
-import { IoAdd, IoTrashOutline, IoMove } from 'react-icons/io5'
+import { IoAdd, IoTrashOutline, IoMove, IoPlay, IoStop } from 'react-icons/io5'
 import { Item, CreateItemDto } from '@workstream/shared'
 
 interface ExtendedItem extends Item {
   highlight?: boolean;
   isEditing?: boolean;
   isEditingEstimation?: boolean;
+  isRunning?: boolean;
+  remainingSeconds?: number;
 }
 
 function App() {
-  const [message, setMessage] = useState('Loading...')
   const [items, setItems] = useState<ExtendedItem[]>([])
   const [formData, setFormData] = useState<CreateItemDto>({
     title: '',
@@ -28,17 +29,33 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
   const [editingEstimation, setEditingEstimation] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Fetch welcome message
+  // Initialize audio
   useEffect(() => {
-    fetch(`${API_URL}/`)
-      .then(response => response.json())
-      .then(data => setMessage(data.message))
-      .catch(error => {
-        console.error('Error connecting to API:', error)
-        setMessage('Error connecting to API')
-      })
-  }, [])
+    audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+  }, []);
+
+  // Timer effect
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setItems(prevItems =>
+        prevItems.map(item => {
+          if (item.isRunning && item.remainingSeconds && item.remainingSeconds > 0) {
+            return { ...item, remainingSeconds: item.remainingSeconds - 1 };
+          } else if (item.isRunning && item.remainingSeconds === 0) {
+            if (audioRef.current) {
+              audioRef.current.play().catch(error => console.log('Audio play failed:', error));
+            }
+            return { ...item, isRunning: false };
+          }
+          return item;
+        })
+      );
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // Fetch all items
   const fetchItems = async () => {
@@ -46,10 +63,6 @@ function App() {
       const response = await fetch(`${API_URL}/items`);
       if (!response.ok) throw new Error('Failed to fetch items');
       const data = await response.json();
-
-      // Debug timestamps
-      console.log('Items received:', data);
-
       setItems(data);
     } catch (error) {
       console.error('Error fetching items:', error);
@@ -298,6 +311,32 @@ function App() {
     );
   };
 
+  const handleStartTimer = (item: ExtendedItem) => {
+    setItems(prevItems =>
+      prevItems.map(i =>
+        i.id === item.id
+          ? { ...i, isRunning: true, remainingSeconds: (item.estimation * 60) }
+          : i
+      )
+    );
+  };
+
+  const handleStopTimer = (item: ExtendedItem) => {
+    setItems(prevItems =>
+      prevItems.map(i =>
+        i.id === item.id
+          ? { ...i, isRunning: false }
+          : i
+      )
+    );
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
       {isLoading && (
@@ -353,7 +392,45 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
+                  <>
+                    {item.isEditingEstimation ? (
+                      <div className="estimation-edit">
+                        <input
+                          type="number"
+                          value={editingEstimation}
+                          onChange={(e) => setEditingEstimation(Number(e.target.value))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleEstimationSave(item);
+                            } else if (e.key === 'Escape') {
+                              handleEstimationCancel(item);
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <div className="edit-actions">
+                          <button onClick={() => handleEstimationSave(item)}>Save</button>
+                          <button onClick={() => handleEstimationCancel(item)}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="timer-container">
+                        <span className="estimation" onClick={() => handleEstimationEdit(item)}>
+                          {item.isRunning ? formatTime(item.remainingSeconds || 0) : item.estimation}
+                        </span>
+                        {!item.isRunning ? (
+                          <button className="timer-button" onClick={() => handleStartTimer(item)}>
+                            <IoPlay />
+                          </button>
+                        ) : (
+                          <button className="timer-button" onClick={() => handleStopTimer(item)}>
+                            <IoStop />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
+                  </>
                 )}
                 <div className="item-actions">
                   <button
@@ -372,29 +449,6 @@ function App() {
                 </div>
               </div>
               <div className="item-details">
-                {item.isEditingEstimation ? (
-                  <div className="estimation-edit">
-                    <input
-                      type="number"
-                      value={editingEstimation}
-                      onChange={(e) => setEditingEstimation(Number(e.target.value))}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleEstimationSave(item);
-                        } else if (e.key === 'Escape') {
-                          handleEstimationCancel(item);
-                        }
-                      }}
-                      autoFocus
-                    />
-                    <div className="edit-actions">
-                      <button onClick={() => handleEstimationSave(item)}>Save</button>
-                      <button onClick={() => handleEstimationCancel(item)}>Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <span className="estimation" onClick={() => handleEstimationEdit(item)}>{item.estimation}</span>
-                )}
               </div>
             </div>
           </article>
