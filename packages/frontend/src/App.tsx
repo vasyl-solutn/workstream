@@ -371,6 +371,35 @@ function App() {
           : i
       )
     );
+
+    // Update estimation in backend when timer is stopped
+    const updateEstimation = async () => {
+      try {
+        const response = await fetch(`${API_URL}/items/${item.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: item.title,
+            estimation: Math.ceil((item.remainingSeconds || 0) / 60), // Convert back to minutes
+            priority: item.priority
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to update estimation');
+
+        const updatedItem = await response.json();
+        setItems(prevItems =>
+          prevItems.map(i =>
+            i.id === item.id ? { ...i, estimation: updatedItem.estimation } : i
+          )
+        );
+      } catch (error) {
+        console.error('Error updating estimation:', error);
+      }
+    };
+    updateEstimation();
   };
 
   const formatTime = (seconds: number) => {
