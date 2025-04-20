@@ -276,6 +276,6 @@ app.put('/items/:id/move', (async (req: Request<ParamsDictionary & { id: string 
   }
 }) as AsyncRequestHandler<ParamsDictionary & { id: string }, any, { previousId?: string; nextId?: string }>);
 
-app.listen(port, () => {
+app.listen(Number(port), () => {
   console.log(`Server running on port ${port}`);
 });
