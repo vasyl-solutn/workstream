@@ -241,8 +241,125 @@ function App() {
   const sortedItems = [...items].sort((a, b) => a.priority - b.priority);
 
   const handleAddBetween = (previousId: string | null, nextId: string | null) => {
-    setCurrentContext({ previousId, nextId });
-    setIsModalOpen(true);
+    // Create a temporary item directly instead of opening the modal
+    const tempItem: ExtendedItem = {
+      id: 'temp-' + Date.now(),
+      title: '',
+      estimation: 0,
+      estimationFormat: 'points',
+      priority: 0,
+      createdAt: new Date().toISOString(),
+      isEditing: true
+    };
+
+    // Add the item at the right position
+    setItems(prevItems => {
+      const newItems = [...prevItems];
+
+      if (previousId === null && nextId === null) {
+        // Add at the beginning
+        return [tempItem, ...newItems];
+      }
+
+      if (nextId) {
+        // Insert before the next item
+        const insertIndex = newItems.findIndex(item => item.id === nextId);
+        if (insertIndex !== -1) {
+          newItems.splice(insertIndex, 0, tempItem);
+          return newItems;
+        }
+      }
+
+      // Add at the end if no nextId or nextId not found
+      return [...newItems, tempItem];
+    });
+
+    // Initialize editing state
+    setEditingTitle('');
+    setEditingEstimationText('');
+  };
+
+  const handleSaveNewItem = async (item: ExtendedItem) => {
+    if (!editingTitle.trim()) return;
+
+    setIsLoading(true);
+    try {
+      let estimation = 0;
+      let estimationFormat: 'points' | 'time' = 'points';
+
+      // Parse estimation value
+      if (editingEstimationText) {
+        if (editingEstimationText.includes(':')) {
+          // Time format (MM:SS)
+          const [minutes, seconds] = editingEstimationText.split(':');
+          const mins = parseInt(minutes) || 0;
+          const secs = parseInt(seconds || '0');
+
+          if (secs >= 60) {
+            alert('Seconds must be between 00 and 59');
+            return;
+          }
+
+          estimation = mins + (secs / 60);
+          estimationFormat = 'time';
+        } else {
+          // Points format
+          const num = parseFloat(editingEstimationText);
+          if (isNaN(num)) {
+            alert('Invalid number format');
+            return;
+          }
+          estimation = num;
+          estimationFormat = 'points';
+        }
+      }
+
+      const newItemData: CreateItemDto = {
+        title: editingTitle,
+        estimation: estimation,
+        estimationFormat: estimationFormat,
+        priority: item.priority || 0
+      };
+
+      const response = await fetch(`${API_URL}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newItemData),
+      });
+
+      if (!response.ok) throw new Error('Failed to create item');
+
+      const createdItem = await response.json();
+
+      // Replace the temporary item with the real one
+      setItems(prevItems =>
+        prevItems.map(i =>
+          i.id === item.id ? { ...createdItem, highlight: true } : i
+        )
+      );
+
+      // Clear highlight after a delay
+      setTimeout(() => {
+        setItems(prevItems =>
+          prevItems.map(i =>
+            i.id === createdItem.id ? { ...i, highlight: false } : i
+          )
+        );
+      }, 1500);
+
+    } catch (error) {
+      console.error('Error creating item:', error);
+      alert('Failed to create item');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelNewItem = (itemId: string) => {
+    // Remove the temporary item
+    setItems(prevItems => prevItems.filter(item => item.id !== itemId));
   };
 
   const handleOutsideClick = (e: React.MouseEvent) => {
@@ -586,48 +703,58 @@ function App() {
               <div className="item-header">
                 {item.isEditing ? (
                   <div className="title-edit">
+                    <div className="estimation-section">
+                      <input
+                        type="text"
+                        value={editingEstimationText}
+                        onChange={(e) => setEditingEstimationText(e.target.value)}
+                        placeholder="Estimation (number or MM:SS)"
+                        className="estimation-input"
+                      />
+                    </div>
                     <input
                       type="text"
                       value={editingTitle}
                       onChange={(e) => setEditingTitle(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          handleTitleSave(item);
+                          handleSaveNewItem(item);
                         } else if (e.key === 'Escape') {
-                          handleTitleCancel(item);
+                          handleCancelNewItem(item.id || '');
                         }
                       }}
+                      placeholder="Enter title"
                       autoFocus
                     />
                     <div className="edit-actions">
-                      <button onClick={() => handleTitleSave(item)}>Save</button>
-                      <button onClick={() => handleTitleCancel(item)}>Cancel</button>
+                      <button onClick={() => handleSaveNewItem(item)}>Save</button>
+                      <button onClick={() => handleCancelNewItem(item.id || '')}>Cancel</button>
                     </div>
                   </div>
                 ) : (
-                  <>
-                    {item.isEditingEstimation ? (
-                      <div className="estimation-edit">
-                        <input
-                          type="text"
-                          value={editingEstimationText}
-                          onChange={(e) => setEditingEstimationText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleEstimationSave(item);
-                            } else if (e.key === 'Escape') {
-                              handleEstimationCancel(item);
-                            }
-                          }}
-                          placeholder="Enter points or time (MM:SS)"
-                          autoFocus
-                        />
-                        <div className="edit-actions">
-                          <button onClick={() => handleEstimationSave(item)}>Save</button>
-                          <button onClick={() => handleEstimationCancel(item)}>Cancel</button>
-                        </div>
+                  item.isEditingEstimation ? (
+                    <div className="estimation-edit">
+                      <input
+                        type="text"
+                        value={editingEstimationText}
+                        onChange={(e) => setEditingEstimationText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleEstimationSave(item);
+                          } else if (e.key === 'Escape') {
+                            handleEstimationCancel(item);
+                          }
+                        }}
+                        placeholder="Enter points or time (MM:SS)"
+                        autoFocus
+                      />
+                      <div className="edit-actions">
+                        <button onClick={() => handleEstimationSave(item)}>Save</button>
+                        <button onClick={() => handleEstimationCancel(item)}>Cancel</button>
                       </div>
-                    ) : (
+                    </div>
+                  ) : (
+                    <>
                       <div className="timer-container">
                         <span
                           className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
@@ -647,27 +774,31 @@ function App() {
                           )
                         )}
                       </div>
-                    )}
-                    <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
-                  </>
+                      <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
+                    </>
+                  )
                 )}
-                <div className="item-actions">
-                  <button
-                    className="icon-button move-button"
-                    onClick={() => item.id && setSelectedItem(item.id)}
-                    disabled={selectedItem === item.id}
-                  >
-                    <IoMove />
-                  </button>
-                  <button
-                    className="icon-button delete-button"
-                    onClick={() => deleteItem(item.id)}
-                  >
-                    <IoTrashOutline />
-                  </button>
-                </div>
+
+                {!item.isEditing && (
+                  <div className="item-actions">
+                    <button
+                      className="icon-button move-button"
+                      onClick={() => item.id && setSelectedItem(item.id)}
+                      disabled={selectedItem === item.id}
+                    >
+                      <IoMove />
+                    </button>
+                    <button
+                      className="icon-button delete-button"
+                      onClick={() => deleteItem(item.id)}
+                    >
+                      <IoTrashOutline />
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="item-details">
+                {/* Remove duplicate estimation field */}
               </div>
             </div>
           </article>

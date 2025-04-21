@@ -825,3 +825,18 @@ h1, h2 {
   color: #4CAF50;
   background-color: rgba(76, 175, 80, 0.1);
 }
+
+.estimation-section {
+  width: 50%;
+  margin-bottom: 8px;
+}
+
+.estimation-input {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  height: 28px;
+  line-height: 1;
+}
