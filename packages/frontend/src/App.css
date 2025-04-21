@@ -172,30 +172,43 @@ main h2 {
 }
 
 .estimation {
-  color: #666;
-  font-size: 12px;
   cursor: pointer;
-  padding: 4px;
+  padding: 4px 8px;
   border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.05);
   transition: background-color 0.2s ease;
+  min-width: 60px;
+  text-align: center;
+  display: inline-block;
 }
 
 .estimation:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.estimation.running {
+  color: #4CAF50;
+  background-color: rgba(76, 175, 80, 0.1);
 }
 
 .estimation-edit {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  background-color: white;
+  padding: 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 1;
 }
 
 .estimation-edit input {
-  padding: 4px;
+  padding: 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
-  font-size: 12px;
-  width: 60px;
+  font-size: 14px;
+  width: 100px;
   background-color: white;
   color: #333;
 }
@@ -208,14 +221,31 @@ main h2 {
 
 .estimation-edit .edit-actions {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   justify-content: flex-end;
 }
 
 .estimation-edit .edit-actions button {
-  padding: 2px 4px;
-  font-size: 10px;
-  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s ease;
+}
+
+.estimation-edit .edit-actions button:first-child {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.estimation-edit .edit-actions button:last-child {
+  background-color: #f44336;
+  color: white;
+}
+
+.estimation-edit .edit-actions button:hover {
+  opacity: 0.9;
 }
 
 .item-card small {
@@ -750,7 +780,7 @@ h1, h2 {
 .timer-container {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 
 .timer-button {

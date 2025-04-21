@@ -64,7 +64,7 @@ app.get('/items', async (req: Request, res: Response) => {
 app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto>, res: Response) => {
   const startTime = performance.now();
   try {
-    const { title, estimation, priority, previousId, nextId } = req.body;
+    const { title, estimation, estimationFormat, priority, previousId, nextId } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -73,6 +73,7 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto>, r
     const itemData = {
       title,
       estimation: estimation || 0,
+      estimationFormat: estimationFormat || 'points',
       priority: priority || 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     };
@@ -151,7 +152,7 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
   const startTime = performance.now();
   try {
     const { id } = req.params;
-    const { title, estimation, priority } = req.body;
+    const { title, estimation, estimationFormat, priority } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -167,6 +168,7 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
     await itemRef.update({
       title,
       ...(estimation !== undefined && { estimation }),
+      ...(estimationFormat && { estimationFormat }),
       ...(priority !== undefined && { priority })
     });
 

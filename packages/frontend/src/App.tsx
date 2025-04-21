@@ -18,6 +18,7 @@ function App() {
   const [formData, setFormData] = useState<CreateItemDto>({
     title: '',
     estimation: 0,
+    estimationFormat: 'points',
     priority: 0
   })
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -31,6 +32,7 @@ function App() {
   const [editingEstimation, setEditingEstimation] = useState(0);
   const [completedTimerId, setCompletedTimerId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [editingEstimationText, setEditingEstimationText] = useState('');
 
   // Initialize audio
   useEffect(() => {
@@ -149,7 +151,7 @@ function App() {
       const newItem = await response.json();
       const itemWithHighlight = { ...newItem, highlight: true };
       setItems(prevItems => [...prevItems, itemWithHighlight]);
-      setFormData({ title: '', estimation: 0, priority: 0 });
+      setFormData({ title: '', estimation: 0, estimationFormat: 'points', priority: 0 });
       setIsModalOpen(false);
       setCurrentContext({ previousId: null, nextId: null });
 
@@ -312,36 +314,84 @@ function App() {
         i.id === item.id ? { ...i, isEditingEstimation: true } : i
       )
     );
-    setEditingEstimation(item.estimation);
+    setEditingEstimationText(formatEstimation(item.estimation, item.estimationFormat || 'points'));
   };
 
   const handleEstimationSave = async (item: ExtendedItem) => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/items/${item.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: item.title,
-          estimation: editingEstimation,
-          priority: item.priority
-        }),
-      });
+    const value = editingEstimationText;
 
-      if (!response.ok) throw new Error('Failed to update estimation');
+    // If it's a time format, validate and convert to minutes
+    if (value.includes(':')) {
+      const [minutes, seconds] = value.split(':');
+      const mins = parseInt(minutes) || 0;
+      const secs = parseInt(seconds || '0');
 
-      setItems(prevItems =>
-        prevItems.map(i =>
-          i.id === item.id ? { ...i, estimation: editingEstimation, isEditingEstimation: false } : i
-        )
-      );
-    } catch (error) {
-      console.error('Error updating estimation:', error);
-      alert('Failed to update estimation');
-    } finally {
-      setIsLoading(false);
+      if (secs >= 0 && secs < 60) {
+        const newEstimation = mins + (secs / 60);
+        setIsLoading(true);
+        try {
+          const response = await fetch(`${API_URL}/items/${item.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              title: item.title,
+              estimation: newEstimation,
+              estimationFormat: 'time',
+              priority: item.priority
+            }),
+          });
+
+          if (!response.ok) throw new Error('Failed to update estimation');
+
+          setItems(prevItems =>
+            prevItems.map(i =>
+              i.id === item.id ? { ...i, estimation: newEstimation, estimationFormat: 'time', isEditingEstimation: false } : i
+            )
+          );
+        } catch (error) {
+          console.error('Error updating estimation:', error);
+          alert('Failed to update estimation');
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        alert('Seconds must be between 00 and 59');
+      }
+    } else {
+      // Handle plain number input
+      const num = parseFloat(value);
+      if (!isNaN(num)) {
+        setIsLoading(true);
+        try {
+          const response = await fetch(`${API_URL}/items/${item.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              title: item.title,
+              estimation: num,
+              estimationFormat: 'points',
+              priority: item.priority
+            }),
+          });
+
+          if (!response.ok) throw new Error('Failed to update estimation');
+
+          setItems(prevItems =>
+            prevItems.map(i =>
+              i.id === item.id ? { ...i, estimation: num, estimationFormat: 'points', isEditingEstimation: false } : i
+            )
+          );
+        } catch (error) {
+          console.error('Error updating estimation:', error);
+          alert('Failed to update estimation');
+        } finally {
+          setIsLoading(false);
+        }
+      }
     }
   };
 
@@ -408,6 +458,93 @@ function App() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleEstimationChange = (item: ExtendedItem, newEstimation: string) => {
+    // Check if the input is in time format (MM:SS)
+    const timeFormatRegex = /^(\d{1,2}):(\d{2})$/;
+    const timeMatch = newEstimation.match(timeFormatRegex);
+
+    // Check if the input is a valid number
+    const numberRegex = /^\d*\.?\d*$/;
+    const isNumber = numberRegex.test(newEstimation);
+
+    let estimation: number;
+    let format: 'points' | 'time';
+
+    if (timeMatch) {
+      // Convert time format to minutes
+      const [mm, ss] = timeMatch.slice(1);
+      const minutes = parseInt(mm);
+      const seconds = parseInt(ss);
+
+      // Validate time values
+      if (minutes >= 0 && seconds >= 0 && seconds < 60) {
+        estimation = minutes + (seconds / 60);
+        format = 'time';
+      } else {
+        return; // Invalid time format
+      }
+    } else if (isNumber) {
+      // Handle plain number input (points)
+      estimation = parseFloat(newEstimation);
+      format = 'points';
+    } else {
+      return; // Invalid input
+    }
+
+    if (!isNaN(estimation)) {
+      setItems(prevItems =>
+        prevItems.map(i =>
+          i.id === item.id
+            ? { ...i, estimation, estimationFormat: format, remainingSeconds: Math.floor(estimation * 60) }
+            : i
+        )
+      );
+    }
+  };
+
+  const formatEstimation = (estimation: number, format: 'points' | 'time') => {
+    if (format === 'points') {
+      return estimation.toString();
+    }
+
+    // Format as MM:SS
+    const minutes = Math.floor(estimation);
+    const seconds = Math.round((estimation - minutes) * 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleAddItem = async () => {
+    if (!formData.title) return;
+
+    const newItem: CreateItemDto = {
+      title: formData.title,
+      estimation: formData.estimation,
+      estimationFormat: formData.estimationFormat,
+      priority: formData.priority
+    };
+
+    try {
+      const response = await fetch(`${API_URL}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newItem),
+      });
+
+      if (!response.ok) throw new Error('Failed to create item');
+
+      const createdItem = await response.json();
+      const itemWithHighlight = { ...createdItem, highlight: true };
+      setItems(prevItems => [...prevItems, itemWithHighlight]);
+      setFormData({ title: '', estimation: 0, estimationFormat: 'points', priority: 0 });
+      setIsModalOpen(false);
+      setCurrentContext({ previousId: null, nextId: null });
+    } catch (error) {
+      console.error('Error creating item:', error);
+    }
+  };
+
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
       {isLoading && (
@@ -467,9 +604,9 @@ function App() {
                     {item.isEditingEstimation ? (
                       <div className="estimation-edit">
                         <input
-                          type="number"
-                          value={editingEstimation}
-                          onChange={(e) => setEditingEstimation(Number(e.target.value))}
+                          type="text"
+                          value={editingEstimationText}
+                          onChange={(e) => setEditingEstimationText(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               handleEstimationSave(item);
@@ -477,6 +614,7 @@ function App() {
                               handleEstimationCancel(item);
                             }
                           }}
+                          placeholder="Enter points or time (MM:SS)"
                           autoFocus
                         />
                         <div className="edit-actions">
@@ -490,7 +628,7 @@ function App() {
                           className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
                           onClick={() => handleEstimationEdit(item)}
                         >
-                          {item.isRunning ? formatTime(item.remainingSeconds || 0) : item.estimation}
+                          {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
                         </span>
                         {!item.isRunning ? (
                           <button className="timer-button" onClick={() => handleStartTimer(item)}>
