@@ -425,6 +425,10 @@ function App() {
     // Update estimation in backend when timer is stopped
     const updateEstimation = async () => {
       try {
+        const remainingMinutes = Math.floor((item.remainingSeconds || 0) / 60);
+        const remainingSeconds = (item.remainingSeconds || 0) % 60;
+        const newEstimation = remainingMinutes + (remainingSeconds / 60);
+
         const response = await fetch(`${API_URL}/items/${item.id}`, {
           method: 'PUT',
           headers: {
@@ -432,7 +436,8 @@ function App() {
           },
           body: JSON.stringify({
             title: item.title,
-            estimation: Math.ceil((item.remainingSeconds || 0) / 60), // Convert back to minutes
+            estimation: newEstimation,
+            estimationFormat: 'time',
             priority: item.priority
           }),
         });
@@ -442,7 +447,7 @@ function App() {
         const updatedItem = await response.json();
         setItems(prevItems =>
           prevItems.map(i =>
-            i.id === item.id ? { ...i, estimation: updatedItem.estimation } : i
+            i.id === item.id ? { ...i, estimation: newEstimation, estimationFormat: 'time' } : i
           )
         );
       } catch (error) {
@@ -630,14 +635,16 @@ function App() {
                         >
                           {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
                         </span>
-                        {!item.isRunning ? (
-                          <button className="timer-button" onClick={() => handleStartTimer(item)}>
-                            <IoPlay />
-                          </button>
-                        ) : (
-                          <button className="timer-button" onClick={() => handleStopTimer(item)}>
-                            <IoStop />
-                          </button>
+                        {item.estimationFormat === 'time' && (
+                          !item.isRunning ? (
+                            <button className="timer-button" onClick={() => handleStartTimer(item)}>
+                              <IoPlay />
+                            </button>
+                          ) : (
+                            <button className="timer-button" onClick={() => handleStopTimer(item)}>
+                              <IoStop />
+                            </button>
+                          )
                         )}
                       </div>
                     )}
