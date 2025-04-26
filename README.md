@@ -61,17 +61,24 @@ workstream/
 
 ### Running Locally
 
-1. Start the backend server
+1. Start both frontend and backend concurrently with a single command:
+   ```bash
+   yarn dev
+   ```
+
+   Or start them separately:
+
+2. Start the backend server
    ```bash
    yarn dev:backend
    ```
 
-2. In a new terminal, start the frontend application
+3. In a new terminal, start the frontend application
    ```bash
    yarn dev:frontend
    ```
 
-3. Access the application
+4. Access the application
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:8080
 

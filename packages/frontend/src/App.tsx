@@ -11,6 +11,8 @@ interface ExtendedItem extends Item {
   isEditingEstimation?: boolean;
   isRunning?: boolean;
   remainingSeconds?: number;
+  previousId?: string | null;
+  nextId?: string | null;
 }
 
 function App() {
@@ -29,7 +31,6 @@ function App() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [editingTitle, setEditingTitle] = useState('');
-  const [editingEstimation, setEditingEstimation] = useState(0);
   const [completedTimerId, setCompletedTimerId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [editingEstimationText, setEditingEstimationText] = useState('');
@@ -249,7 +250,9 @@ function App() {
       estimationFormat: 'points',
       priority: 0,
       createdAt: new Date().toISOString(),
-      isEditing: true
+      isEditing: true,
+      previousId,
+      nextId
     };
 
     // Add the item at the right position
@@ -314,29 +317,48 @@ function App() {
         }
       }
 
-      const newItemData: CreateItemDto = {
+      const itemData = {
         title: editingTitle,
         estimation: estimation,
         estimationFormat: estimationFormat,
-        priority: item.priority || 0
+        priority: item.priority,
+        previousId: item.previousId,
+        nextId: item.nextId
       };
 
-      const response = await fetch(`${API_URL}/items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newItemData),
-      });
+      let response;
+      let updatedItem;
 
-      if (!response.ok) throw new Error('Failed to create item');
+      if (item.id.startsWith('temp-')) {
+        // This is a new item
+        response = await fetch(`${API_URL}/items`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(itemData),
+        });
 
-      const createdItem = await response.json();
+        if (!response.ok) throw new Error('Failed to create item');
+        updatedItem = await response.json();
+      } else {
+        // This is an existing item being edited
+        response = await fetch(`${API_URL}/items/${item.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(itemData),
+        });
 
-      // Replace the temporary item with the real one
+        if (!response.ok) throw new Error('Failed to update item');
+        updatedItem = await response.json();
+      }
+
+      // Update the item in the list
       setItems(prevItems =>
         prevItems.map(i =>
-          i.id === item.id ? { ...createdItem, highlight: true } : i
+          i.id === item.id ? { ...updatedItem, highlight: true, isEditing: false } : i
         )
       );
 
@@ -344,14 +366,14 @@ function App() {
       setTimeout(() => {
         setItems(prevItems =>
           prevItems.map(i =>
-            i.id === createdItem.id ? { ...i, highlight: false } : i
+            i.id === updatedItem.id ? { ...i, highlight: false } : i
           )
         );
       }, 1500);
 
     } catch (error) {
-      console.error('Error creating item:', error);
-      alert('Failed to create item');
+      console.error('Error saving item:', error);
+      alert('Failed to save item');
     } finally {
       setIsLoading(false);
     }
@@ -380,49 +402,6 @@ function App() {
       )
     );
     setEditingTitle(item.title);
-  };
-
-  const handleTitleSave = async (item: ExtendedItem) => {
-    if (!editingTitle.trim()) {
-      alert('Title cannot be empty');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${API_URL}/items/${item.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: editingTitle,
-          estimation: item.estimation,
-          priority: item.priority
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to update title');
-
-      setItems(prevItems =>
-        prevItems.map(i =>
-          i.id === item.id ? { ...i, title: editingTitle, isEditing: false } : i
-        )
-      );
-    } catch (error) {
-      console.error('Error updating title:', error);
-      alert('Failed to update title');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleTitleCancel = (item: ExtendedItem) => {
-    setItems(prevItems =>
-      prevItems.map(i =>
-        i.id === item.id ? { ...i, isEditing: false } : i
-      )
-    );
   };
 
   const handleEstimationEdit = (item: ExtendedItem) => {
@@ -561,7 +540,7 @@ function App() {
 
         if (!response.ok) throw new Error('Failed to update estimation');
 
-        const updatedItem = await response.json();
+        await response.json();
         setItems(prevItems =>
           prevItems.map(i =>
             i.id === item.id ? { ...i, estimation: newEstimation, estimationFormat: 'time' } : i
