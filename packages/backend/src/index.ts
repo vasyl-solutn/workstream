@@ -44,15 +44,19 @@ app.get('/api/test', async (req, res) => {
 
 // Get all items
 app.get('/items', async (req: Request, res: Response) => {
-  const startTime = performance.now();
   try {
+    const collectionStartTime = performance.now();
     const snapshot = await db.collection('items').orderBy('priority').get();
+    const collectionEndTime = performance.now();
+    console.info(`Database collection query took ${(collectionEndTime - collectionStartTime).toFixed(2)}ms`);
+
+    const itemsDocksIterationStartTime = performance.now();
     const items = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    const endTime = performance.now();
-    console.info(`Database query took ${(endTime - startTime).toFixed(2)}ms`);
+    const itemsDocksIterationEndTime = performance.now();
+    console.info(`Database items docks iteration took ${(itemsDocksIterationEndTime - itemsDocksIterationStartTime).toFixed(2)}ms`);
     res.json(items);
   } catch (error) {
     console.error('Error fetching items:', error);
@@ -149,7 +153,6 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto>, r
 
 // Update an item
 app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, any, Partial<Item>>, res: Response) => {
-  const startTime = performance.now();
   try {
     const { id } = req.params;
     const { title, estimation, estimationFormat, priority } = req.body;
@@ -158,13 +161,17 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
       return res.status(400).json({ error: 'Title is required' });
     }
 
+    const itemSelectStartTime = performance.now();
     const itemRef = db.collection('items').doc(id);
     const item = await itemRef.get();
+    const itemSelectEndTime = performance.now();
+    console.info(`Database item select took ${(itemSelectEndTime - itemSelectStartTime).toFixed(2)}ms`);
 
     if (!item.exists) {
       return res.status(404).json({ error: 'Item not found' });
     }
 
+    const updateStartTime = performance.now();
     await itemRef.update({
       title,
       ...(estimation !== undefined && { estimation }),
@@ -172,8 +179,8 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
       ...(priority !== undefined && { priority })
     });
 
-    const endTime = performance.now();
-    console.info(`Database update took ${(endTime - startTime).toFixed(2)}ms`);
+    const updateEndTime = performance.now();
+    console.info(`Database update took ${(updateEndTime - updateStartTime).toFixed(2)}ms`);
 
     const updatedItem = await itemRef.get();
     res.json({
