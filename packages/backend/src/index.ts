@@ -49,12 +49,10 @@ app.get('/items', async (req: Request, res: Response) => {
     const snapshot = await db.collection('items').orderBy('priority').get();
     console.info(`Database collection query took ${(performance.now() - collectionStartTime).toFixed(2)}ms`);
 
-    const itemsDocksIterationStartTime = performance.now();
     const items = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    console.info(`Database items docks iteration took ${(performance.now() - itemsDocksIterationStartTime).toFixed(2)}ms`);
     res.json(items);
   } catch (error) {
     console.error('Error fetching items:', error);
