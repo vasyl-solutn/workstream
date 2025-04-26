@@ -13,6 +13,7 @@ interface ExtendedItem extends Item {
   remainingSeconds?: number;
   previousId?: string | null;
   nextId?: string | null;
+  isNew?: boolean;
 }
 
 function App() {
@@ -244,7 +245,6 @@ function App() {
   const handleAddBetween = (previousId: string | null, nextId: string | null) => {
     // Create a temporary item directly instead of opening the modal
     const tempItem: ExtendedItem = {
-      id: 'temp-' + Date.now(),
       title: '',
       estimation: 0,
       estimationFormat: 'points',
@@ -252,7 +252,8 @@ function App() {
       createdAt: new Date().toISOString(),
       isEditing: true,
       previousId,
-      nextId
+      nextId,
+      isNew: true
     };
 
     // Add the item at the right position
@@ -329,7 +330,7 @@ function App() {
       let response;
       let updatedItem;
 
-      if (item.id.startsWith('temp-')) {
+      if (item.isNew) {
         // This is a new item
         response = await fetch(`${API_URL}/items`, {
           method: 'POST',
@@ -358,7 +359,7 @@ function App() {
       // Update the item in the list
       setItems(prevItems =>
         prevItems.map(i =>
-          i.id === item.id ? { ...updatedItem, highlight: true, isEditing: false } : i
+          i.isNew ? { ...updatedItem, highlight: true, isEditing: false, isNew: false } : i
         )
       );
 
@@ -379,9 +380,9 @@ function App() {
     }
   };
 
-  const handleCancelNewItem = (itemId: string) => {
+  const handleCancelNewItem = () => {
     // Remove the temporary item
-    setItems(prevItems => prevItems.filter(item => item.id !== itemId));
+    setItems(prevItems => prevItems.filter(i => !i.isNew));
   };
 
   const handleOutsideClick = (e: React.MouseEvent) => {
@@ -711,7 +712,7 @@ function App() {
                         if (e.key === 'Enter') {
                           handleSaveNewItem(item);
                         } else if (e.key === 'Escape') {
-                          handleCancelNewItem(item.id || '');
+                          handleCancelNewItem();
                         }
                       }}
                       placeholder="Enter title"
@@ -719,7 +720,7 @@ function App() {
                     />
                     <div className="edit-actions">
                       <button onClick={() => handleSaveNewItem(item)}>Save</button>
-                      <button onClick={() => handleCancelNewItem(item.id || '')}>Cancel</button>
+                      <button onClick={() => handleCancelNewItem()}>Cancel</button>
                     </div>
                   </div>
                 ) : (
