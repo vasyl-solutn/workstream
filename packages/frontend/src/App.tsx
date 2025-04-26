@@ -654,7 +654,19 @@ function App() {
         </div>
       )}
       <div className="total-estimation">
-        Total: {items.reduce((sum, item) => sum + item.estimation, 0)}
+        <div className="total-points">
+          Total Points: {items
+            .filter(item => item.estimationFormat === 'points')
+            .reduce((sum, item) => sum + item.estimation, 0)}
+        </div>
+        <div className="total-time">
+          Total Time: {formatEstimation(
+            items
+              .filter(item => item.estimationFormat === 'time')
+              .reduce((sum, item) => sum + item.estimation, 0),
+            'time'
+          )}
+        </div>
       </div>
       <div className="item-wrapper">
         {!selectedItem ? (
