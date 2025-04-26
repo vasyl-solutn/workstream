@@ -47,16 +47,14 @@ app.get('/items', async (req: Request, res: Response) => {
   try {
     const collectionStartTime = performance.now();
     const snapshot = await db.collection('items').orderBy('priority').get();
-    const collectionEndTime = performance.now();
-    console.info(`Database collection query took ${(collectionEndTime - collectionStartTime).toFixed(2)}ms`);
+    console.info(`Database collection query took ${(performance.now() - collectionStartTime).toFixed(2)}ms`);
 
     const itemsDocksIterationStartTime = performance.now();
     const items = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    const itemsDocksIterationEndTime = performance.now();
-    console.info(`Database items docks iteration took ${(itemsDocksIterationEndTime - itemsDocksIterationStartTime).toFixed(2)}ms`);
+    console.info(`Database items docks iteration took ${(performance.now() - itemsDocksIterationStartTime).toFixed(2)}ms`);
     res.json(items);
   } catch (error) {
     console.error('Error fetching items:', error);
@@ -137,8 +135,7 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto>, r
       });
     }
 
-    const endTime = performance.now();
-    console.info(`Database insert took ${(endTime - startTime).toFixed(2)}ms`);
+    console.info(`Database insert took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     const item = await newItem.get();
     res.status(201).json({
@@ -164,8 +161,7 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
     const itemSelectStartTime = performance.now();
     const itemRef = db.collection('items').doc(id);
     const item = await itemRef.get();
-    const itemSelectEndTime = performance.now();
-    console.info(`Database item select took ${(itemSelectEndTime - itemSelectStartTime).toFixed(2)}ms`);
+    console.info(`Database item select took ${(performance.now() - itemSelectStartTime).toFixed(2)}ms`);
 
     if (!item.exists) {
       return res.status(404).json({ error: 'Item not found' });
@@ -179,8 +175,7 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
       ...(priority !== undefined && { priority })
     });
 
-    const updateEndTime = performance.now();
-    console.info(`Database update took ${(updateEndTime - updateStartTime).toFixed(2)}ms`);
+    console.info(`Database update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
 
     const updatedItem = await itemRef.get();
     res.json({
@@ -206,8 +201,7 @@ app.delete('/items/:id', (async (req: Request<ParamsDictionary & { id: string }>
     }
 
     await itemRef.delete();
-    const endTime = performance.now();
-    console.info(`Database delete took ${(endTime - startTime).toFixed(2)}ms`);
+    console.info(`Database delete took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     res.status(204).send();
   } catch (error) {
@@ -271,8 +265,7 @@ app.put('/items/:id/move', (async (req: Request<ParamsDictionary & { id: string 
     }
 
     await itemRef.update({ priority: newPriority });
-    const endTime = performance.now();
-    console.info(`Database move took ${(endTime - startTime).toFixed(2)}ms`);
+    console.info(`Database move took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     const updatedItem = await itemRef.get();
     res.json({
