@@ -203,35 +203,20 @@ function App() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/items/${selectedItem}/move`, {
+      await fetch(`${API_URL}/items/${selectedItem}/move`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           previousId,
-          nextId,
+          nextId
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to move item');
-
-      const updatedItem = await response.json();
-      const itemWithHighlight = { ...updatedItem, highlight: true };
-      setItems(prevItems =>
-        prevItems.map(item =>
-          item.id === selectedItem ? itemWithHighlight : item
-        )
-      );
+      // Refresh the items list
+      await fetchItems();
       setSelectedItem(null);
-
-      setTimeout(() => {
-        setItems(prevItems =>
-          prevItems.map(item =>
-            item.id === selectedItem ? { ...item, highlight: false } : item
-          )
-        );
-      }, 1500);
     } catch (error) {
       console.error('Error moving item:', error);
       alert('Failed to move item');
@@ -669,27 +654,30 @@ function App() {
           )}
         </div>
       </div>
-      <div className="item-wrapper">
-        {!selectedItem ? (
-          <button
-            className="add-between-button"
-            onClick={() => handleAddBetween(null, sortedItems[0]?.id || null)}
-          >
-            <IoAdd />
-          </button>
-        ) : (
-          <button
-            className="dot-button"
-            onClick={() => handleMove(null, sortedItems[0]?.id || null)}
-            title="Paste here"
-          >
-            •
-          </button>
-        )}
-      </div>
 
       {sortedItems.map((item, index) => (
         <div key={item.id} className="item-wrapper">
+          <div className="action-buttons">
+            {!selectedItem ? (
+              <button
+                className="add-between-button"
+                onClick={() => handleAddBetween(
+                  item.id || null,
+                  sortedItems[index + 1]?.id || null
+                )}
+              >
+                <IoAdd />
+              </button>
+            ) : selectedItem !== item.id && selectedItem !== sortedItems[index - 1]?.id && (
+              <button
+                className="dot-button"
+                onClick={() => handleMove(sortedItems[index - 1]?.id || null, item.id || null)}
+                title="Paste here"
+              >
+                •
+              </button>
+            )}
+          </div>
           <article className={`item-card ${selectedItem === item.id ? 'selected' : ''} ${item.highlight ? 'highlight' : ''}`}>
             <div className="item-content">
               <div className="item-header">
@@ -794,30 +782,21 @@ function App() {
               </div>
             </div>
           </article>
-
-          <div className="action-buttons">
-            {!selectedItem ? (
-              <button
-                className="add-between-button"
-                onClick={() => handleAddBetween(
-                  item.id || null,
-                  sortedItems[index + 1]?.id || null
-                )}
-              >
-                <IoAdd />
-              </button>
-            ) : selectedItem !== item.id && (
-              <button
-                className="dot-button"
-                onClick={() => handleMove(item.id || null, sortedItems[index + 1]?.id || null)}
-                title="Paste here"
-              >
-                •
-              </button>
-            )}
-          </div>
         </div>
       ))}
+
+      {/* Add dot button at the end */}
+      <div className="item-wrapper">
+        {selectedItem && (
+          <button
+            className="dot-button"
+            onClick={() => handleMove(sortedItems[sortedItems.length - 1]?.id || null, null)}
+            title="Paste at the end"
+          >
+            •
+          </button>
+        )}
+      </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
         <form onSubmit={handleSubmit} className="item-form">
