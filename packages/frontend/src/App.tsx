@@ -344,7 +344,9 @@ function App() {
       // Update the item in the list
       setItems(prevItems =>
         prevItems.map(i =>
-          i.isNew ? { ...updatedItem, highlight: true, isEditing: false, isNew: false } : i
+          i.id === item.id || i.isNew
+            ? { ...updatedItem, highlight: true, isEditing: false, isEditingEstimation: false, isNew: false }
+            : i
         )
       );
 
@@ -357,6 +359,10 @@ function App() {
         );
       }, 1500);
 
+      // Close the form
+      setEditingTitle('');
+      setEditingEstimationText('');
+
     } catch (error) {
       console.error('Error saving item:', error);
       alert('Failed to save item');
@@ -366,8 +372,19 @@ function App() {
   };
 
   const handleCancelNewItem = () => {
-    // Remove the temporary item
-    setItems(prevItems => prevItems.filter(i => !i.isNew));
+    // Clear form values
+    setEditingTitle('');
+    setEditingEstimationText('');
+
+    // Reset editing state
+    setItems(prevItems =>
+      prevItems.map(i => ({
+        ...i,
+        isEditing: false,
+        isEditingEstimation: false,
+        isNew: false
+      }))
+    );
   };
 
   const handleOutsideClick = (e: React.MouseEvent) => {
@@ -388,6 +405,7 @@ function App() {
       )
     );
     setEditingTitle(item.title);
+    setEditingEstimationText(formatEstimation(item.estimation, item.estimationFormat || 'points'));
   };
 
   const handleEstimationEdit = (item: ExtendedItem) => {
@@ -681,6 +699,27 @@ function App() {
           <article className={`item-card ${selectedItem === item.id ? 'selected' : ''} ${item.highlight ? 'highlight' : ''}`}>
             <div className="item-content">
               <div className="item-header">
+                {!item.isEditing && (
+                  <div className="timer-container">
+                    <span
+                      className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
+                      onClick={() => handleTitleEdit(item)}
+                    >
+                      {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
+                    </span>
+                    {item.estimationFormat === 'time' && (
+                      !item.isRunning ? (
+                        <button className="timer-button" onClick={() => handleStartTimer(item)}>
+                          <IoPlay />
+                        </button>
+                      ) : (
+                        <button className="timer-button" onClick={() => handleStopTimer(item)}>
+                          <IoStop />
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
                 {item.isEditing ? (
                   <div className="title-edit">
                     <div className="estimation-section">
@@ -712,51 +751,7 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  item.isEditingEstimation ? (
-                    <div className="estimation-edit">
-                      <input
-                        type="text"
-                        value={editingEstimationText}
-                        onChange={(e) => setEditingEstimationText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleEstimationSave(item);
-                          } else if (e.key === 'Escape') {
-                            handleEstimationCancel(item);
-                          }
-                        }}
-                        placeholder="Enter points or time (MM:SS)"
-                        autoFocus
-                      />
-                      <div className="edit-actions">
-                        <button onClick={() => handleEstimationSave(item)}>Save</button>
-                        <button onClick={() => handleEstimationCancel(item)}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="timer-container">
-                        <span
-                          className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
-                          onClick={() => handleEstimationEdit(item)}
-                        >
-                          {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
-                        </span>
-                        {item.estimationFormat === 'time' && (
-                          !item.isRunning ? (
-                            <button className="timer-button" onClick={() => handleStartTimer(item)}>
-                              <IoPlay />
-                            </button>
-                          ) : (
-                            <button className="timer-button" onClick={() => handleStopTimer(item)}>
-                              <IoStop />
-                            </button>
-                          )
-                        )}
-                      </div>
-                      <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
-                    </>
-                  )
+                  <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
                 )}
 
                 {!item.isEditing && (
