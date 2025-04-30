@@ -171,10 +171,6 @@ const ItemComponent = ({
             )}
           </div>
           <div className="item-details">
-            {/* Temporary debug info */}
-            <div className="debug-info" style={{ fontSize: '0.8em', color: '#666', marginTop: '5px' }}>
-              ID: {item.id} | Index: {index} | Position: {item.priority}
-            </div>
           </div>
         </div>
       </article>
