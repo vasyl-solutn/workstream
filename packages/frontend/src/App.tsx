@@ -869,25 +869,17 @@ function App() {
         </div>
       </div>
 
-      {/* First item add button */}
-      <div className="item-wrapper">
-        {!selectedItem ? (
+      {/* First item add button (only show if there are no items or before first item) */}
+      {sortedItems.length === 0 && (
+        <div className="item-wrapper">
           <button
             className="add-between-button"
-            onClick={() => handleAddBetween(null, sortedItems[0]?.id || null)}
+            onClick={() => handleAddBetween(null, null)}
           >
             <IoAdd />
           </button>
-        ) : (
-          <button
-            className="dot-button"
-            onClick={() => handleMove(null, sortedItems[0]?.id || null)}
-            title="Paste here"
-          >
-            •
-          </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {sortedItems.map((item, index) => (
         <ItemComponent
