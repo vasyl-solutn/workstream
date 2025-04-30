@@ -245,12 +245,30 @@ function App() {
   const sortedItems = [...items].sort((a, b) => a.priority - b.priority);
 
   const handleAddBetween = (previousId: string | null, nextId: string | null) => {
-    // Create a temporary item directly instead of opening the modal
+    // Find the items to calculate the right priority
+    const prevItem = previousId ? items.find(item => item.id === previousId) : null;
+    const nextItem = nextId ? items.find(item => item.id === nextId) : null;
+
+    // Calculate the priority to position correctly
+    let newPriority = 0;
+
+    if (prevItem && nextItem) {
+      // Between two items
+      newPriority = (prevItem.priority + nextItem.priority) / 2;
+    } else if (prevItem) {
+      // After the last item
+      newPriority = prevItem.priority + 1;
+    } else if (nextItem) {
+      // Before the first item
+      newPriority = nextItem.priority - 1;
+    }
+
+    // Create a temporary item
     const tempItem: ExtendedItem = {
       title: '',
       estimation: 0,
       estimationFormat: 'points',
-      priority: 0,
+      priority: newPriority,
       createdAt: new Date().toISOString(),
       isEditing: true,
       previousId,
@@ -258,27 +276,8 @@ function App() {
       isNew: true
     };
 
-    // Add the item at the right position
-    setItems(prevItems => {
-      const newItems = [...prevItems];
-
-      if (previousId === null && nextId === null) {
-        // Add at the beginning
-        return [tempItem, ...newItems];
-      }
-
-      if (nextId) {
-        // Insert before the next item
-        const insertIndex = newItems.findIndex(item => item.id === nextId);
-        if (insertIndex !== -1) {
-          newItems.splice(insertIndex, 0, tempItem);
-          return newItems;
-        }
-      }
-
-      // Add at the end if no nextId or nextId not found
-      return [...newItems, tempItem];
-    });
+    // Add the item to the array
+    setItems(prevItems => [...prevItems, tempItem]);
 
     // Initialize editing state
     setEditingTitle('');
@@ -715,8 +714,8 @@ function App() {
               <button
                 className="add-between-button"
                 onClick={() => handleAddBetween(
-                  item.id || null,
-                  sortedItems[index + 1]?.id || null
+                  sortedItems[index - 1]?.id || null,
+                  item.id || null
                 )}
               >
                 <IoAdd />
