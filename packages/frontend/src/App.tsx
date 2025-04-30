@@ -16,6 +16,172 @@ interface ExtendedItem extends Item {
   isNew?: boolean;
 }
 
+// Item component for rendering each item
+const ItemComponent = ({
+  item,
+  index,
+  selectedItem,
+  handleTitleEdit,
+  handleStartTimer,
+  handleStopTimer,
+  deleteItem,
+  sortedItems,
+  calculateEstimatedTime,
+  completedTimerId,
+  formatTime,
+  formatEstimation,
+  editingTitle,
+  setEditingTitle,
+  editingEstimationText,
+  setEditingEstimationText,
+  handleSaveNewItem,
+  handleCancelNewItem,
+  handleMove,
+  setSelectedItem,
+  handleAddBetween
+}: {
+  item: ExtendedItem;
+  index: number;
+  selectedItem: string | null;
+  handleTitleEdit: (item: ExtendedItem) => void;
+  handleStartTimer: (item: ExtendedItem) => void;
+  handleStopTimer: (item: ExtendedItem) => void;
+  deleteItem: (id: string | undefined) => Promise<void>;
+  sortedItems: ExtendedItem[];
+  calculateEstimatedTime: (items: ExtendedItem[], currentIndex: number) => string | null;
+  completedTimerId: string | null;
+  formatTime: (seconds: number) => string;
+  formatEstimation: (estimation: number, format: 'points' | 'time') => string;
+  editingTitle: string;
+  setEditingTitle: React.Dispatch<React.SetStateAction<string>>;
+  editingEstimationText: string;
+  setEditingEstimationText: React.Dispatch<React.SetStateAction<string>>;
+  handleSaveNewItem: (item: ExtendedItem) => Promise<void>;
+  handleCancelNewItem: () => void;
+  handleMove: (previousId: string | null, nextId: string | null) => Promise<void>;
+  setSelectedItem: React.Dispatch<React.SetStateAction<string | null>>;
+  handleAddBetween: (previousId: string | null, nextId: string | null) => void;
+}) => {
+  return (
+    <div className="item-wrapper">
+      <div className="action-buttons">
+        {!selectedItem ? (
+          <button
+            className="add-between-button"
+            onClick={() => handleAddBetween(
+              sortedItems[index - 1]?.id || null,
+              item.id || null
+            )}
+          >
+            <IoAdd />
+          </button>
+        ) : selectedItem !== item.id && selectedItem !== sortedItems[index - 1]?.id && (
+          <button
+            className="dot-button"
+            onClick={() => handleMove(sortedItems[index - 1]?.id || null, item.id || null)}
+            title="Paste here"
+          >
+            •
+          </button>
+        )}
+      </div>
+      <article className={`item-card ${selectedItem === item.id ? 'selected' : ''} ${item.highlight ? 'highlight' : ''}`}>
+        <div className="item-content">
+          <div className="item-header">
+            {!item.isEditing && (
+              <div className="timer-container" style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span
+                    className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
+                    onClick={() => handleTitleEdit(item)}
+                  >
+                    {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
+                  </span>
+                  {item.estimationFormat === 'time' && (
+                    !item.isRunning ? (
+                      <button className="timer-button" onClick={() => handleStartTimer(item)}>
+                        <IoPlay />
+                      </button>
+                    ) : (
+                      <button className="timer-button" onClick={() => handleStopTimer(item)}>
+                        <IoStop />
+                      </button>
+                    )
+                  )}
+                </div>
+                {item.estimationFormat === 'time' && (
+                  <div style={{ fontSize: '0.7em', color: '#666', marginTop: '2px', textAlign: 'left' }}>
+                    Finish by: {calculateEstimatedTime(sortedItems, index)}
+                  </div>
+                )}
+              </div>
+            )}
+            {item.isEditing ? (
+              <div className="title-edit">
+                <div className="estimation-section">
+                  <input
+                    type="text"
+                    value={editingEstimationText}
+                    onChange={(e) => setEditingEstimationText(e.target.value)}
+                    placeholder="Estimation (number or MM:SS)"
+                    className="estimation-input"
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={editingTitle}
+                  onChange={(e) => setEditingTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveNewItem(item);
+                    } else if (e.key === 'Escape') {
+                      handleCancelNewItem();
+                    }
+                  }}
+                  placeholder="Enter title"
+                  autoFocus
+                />
+                <div className="edit-actions">
+                  <button onClick={() => handleSaveNewItem(item)}>Save</button>
+                  <button onClick={() => handleCancelNewItem()}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
+              </>
+            )}
+
+            {!item.isEditing && (
+              <div className="item-actions">
+                <button
+                  className="icon-button move-button"
+                  onClick={() => item.id && setSelectedItem(item.id)}
+                  disabled={selectedItem === item.id}
+                >
+                  <IoMove />
+                </button>
+                <button
+                  className="icon-button delete-button"
+                  onClick={() => deleteItem(item.id)}
+                >
+                  <IoTrashOutline />
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="item-details">
+            {/* Temporary debug info */}
+            <div className="debug-info" style={{ fontSize: '0.8em', color: '#666', marginTop: '5px' }}>
+              ID: {item.id} | Index: {index} | Position: {item.priority}
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+};
+
 function App() {
   const [items, setItems] = useState<ExtendedItem[]>([])
   const [formData, setFormData] = useState<CreateItemDto>({
@@ -707,134 +873,72 @@ function App() {
         </div>
       </div>
 
-      {sortedItems.map((item, index) => (
-        <div key={item.id} className="item-wrapper">
-          <div className="action-buttons">
-            {!selectedItem ? (
-              <button
-                className="add-between-button"
-                onClick={() => handleAddBetween(
-                  sortedItems[index - 1]?.id || null,
-                  item.id || null
-                )}
-              >
-                <IoAdd />
-              </button>
-            ) : selectedItem !== item.id && selectedItem !== sortedItems[index - 1]?.id && (
-              <button
-                className="dot-button"
-                onClick={() => handleMove(sortedItems[index - 1]?.id || null, item.id || null)}
-                title="Paste here"
-              >
-                •
-              </button>
-            )}
-          </div>
-          <article className={`item-card ${selectedItem === item.id ? 'selected' : ''} ${item.highlight ? 'highlight' : ''}`}>
-            <div className="item-content">
-              <div className="item-header">
-                {!item.isEditing && (
-                  <div className="timer-container" style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <span
-                        className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
-                        onClick={() => handleTitleEdit(item)}
-                      >
-                        {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
-                      </span>
-                      {item.estimationFormat === 'time' && (
-                        !item.isRunning ? (
-                          <button className="timer-button" onClick={() => handleStartTimer(item)}>
-                            <IoPlay />
-                          </button>
-                        ) : (
-                          <button className="timer-button" onClick={() => handleStopTimer(item)}>
-                            <IoStop />
-                          </button>
-                        )
-                      )}
-                    </div>
-                    {item.estimationFormat === 'time' && (
-                      <div style={{ fontSize: '0.7em', color: '#666', marginTop: '2px', textAlign: 'left' }}>
-                        Finish by: {calculateEstimatedTime(sortedItems, index)}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {item.isEditing ? (
-                  <div className="title-edit">
-                    <div className="estimation-section">
-                      <input
-                        type="text"
-                        value={editingEstimationText}
-                        onChange={(e) => setEditingEstimationText(e.target.value)}
-                        placeholder="Estimation (number or MM:SS)"
-                        className="estimation-input"
-                      />
-                    </div>
-                    <input
-                      type="text"
-                      value={editingTitle}
-                      onChange={(e) => setEditingTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleSaveNewItem(item);
-                        } else if (e.key === 'Escape') {
-                          handleCancelNewItem();
-                        }
-                      }}
-                      placeholder="Enter title"
-                      autoFocus
-                    />
-                    <div className="edit-actions">
-                      <button onClick={() => handleSaveNewItem(item)}>Save</button>
-                      <button onClick={() => handleCancelNewItem()}>Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
-                  </>
-                )}
+      {/* First item add button */}
+      <div className="item-wrapper">
+        {!selectedItem ? (
+          <button
+            className="add-between-button"
+            onClick={() => handleAddBetween(null, sortedItems[0]?.id || null)}
+          >
+            <IoAdd />
+          </button>
+        ) : (
+          <button
+            className="dot-button"
+            onClick={() => handleMove(null, sortedItems[0]?.id || null)}
+            title="Paste here"
+          >
+            •
+          </button>
+        )}
+      </div>
 
-                {!item.isEditing && (
-                  <div className="item-actions">
-                    <button
-                      className="icon-button move-button"
-                      onClick={() => item.id && setSelectedItem(item.id)}
-                      disabled={selectedItem === item.id}
-                    >
-                      <IoMove />
-                    </button>
-                    <button
-                      className="icon-button delete-button"
-                      onClick={() => deleteItem(item.id)}
-                    >
-                      <IoTrashOutline />
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="item-details">
-                {/* Temporary debug info */}
-                <div className="debug-info" style={{ fontSize: '0.8em', color: '#666', marginTop: '5px' }}>
-                  ID: {item.id} | Index: {index} | Position: {item.priority}
-                </div>
-              </div>
-            </div>
-          </article>
-        </div>
+      {sortedItems.map((item, index) => (
+        <ItemComponent
+          key={item.id}
+          item={item}
+          index={index}
+          selectedItem={selectedItem}
+          handleTitleEdit={handleTitleEdit}
+          handleStartTimer={handleStartTimer}
+          handleStopTimer={handleStopTimer}
+          deleteItem={deleteItem}
+          sortedItems={sortedItems}
+          calculateEstimatedTime={calculateEstimatedTime}
+          completedTimerId={completedTimerId}
+          formatTime={formatTime}
+          formatEstimation={formatEstimation}
+          editingTitle={editingTitle}
+          setEditingTitle={setEditingTitle}
+          editingEstimationText={editingEstimationText}
+          setEditingEstimationText={setEditingEstimationText}
+          handleSaveNewItem={handleSaveNewItem}
+          handleCancelNewItem={handleCancelNewItem}
+          handleMove={handleMove}
+          setSelectedItem={setSelectedItem}
+          handleAddBetween={handleAddBetween}
+        />
       ))}
 
-      {/* Add dot button at the end */}
+      {/* Last item add/move button */}
       <div className="item-wrapper">
-        {selectedItem && (
+        {selectedItem ? (
           <button
             className="dot-button"
             onClick={() => handleMove(sortedItems[sortedItems.length - 1]?.id || null, null)}
             title="Paste at the end"
           >
             •
+          </button>
+        ) : (
+          <button
+            className="add-between-button"
+            onClick={() => handleAddBetween(
+              sortedItems[sortedItems.length - 1]?.id || null,
+              null
+            )}
+          >
+            <IoAdd />
           </button>
         )}
       </div>
