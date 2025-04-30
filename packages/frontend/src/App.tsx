@@ -635,6 +635,24 @@ function App() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  const calculateEstimatedTime = (items: ExtendedItem[], currentIndex: number) => {
+    if (currentIndex < 0) return null;
+
+    const now = new Date();
+    let totalMinutes = 0;
+
+    // Sum up all previous items' estimations plus current item
+    for (let i = 0; i <= currentIndex; i++) {
+      if (items[i].estimationFormat === 'time') {
+        totalMinutes += items[i].estimation;
+      }
+    }
+
+    // Add total minutes to current time
+    const estimatedTime = new Date(now.getTime() + totalMinutes * 60000);
+    return estimatedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   const handleAddItem = async () => {
     if (!formData.title) return;
 
@@ -717,23 +735,30 @@ function App() {
             <div className="item-content">
               <div className="item-header">
                 {!item.isEditing && (
-                  <div className="timer-container">
-                    <span
-                      className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
-                      onClick={() => handleTitleEdit(item)}
-                    >
-                      {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
-                    </span>
+                  <div className="timer-container" style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <span
+                        className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
+                        onClick={() => handleTitleEdit(item)}
+                      >
+                        {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
+                      </span>
+                      {item.estimationFormat === 'time' && (
+                        !item.isRunning ? (
+                          <button className="timer-button" onClick={() => handleStartTimer(item)}>
+                            <IoPlay />
+                          </button>
+                        ) : (
+                          <button className="timer-button" onClick={() => handleStopTimer(item)}>
+                            <IoStop />
+                          </button>
+                        )
+                      )}
+                    </div>
                     {item.estimationFormat === 'time' && (
-                      !item.isRunning ? (
-                        <button className="timer-button" onClick={() => handleStartTimer(item)}>
-                          <IoPlay />
-                        </button>
-                      ) : (
-                        <button className="timer-button" onClick={() => handleStopTimer(item)}>
-                          <IoStop />
-                        </button>
-                      )
+                      <div style={{ fontSize: '0.7em', color: '#666', marginTop: '2px', textAlign: 'left' }}>
+                        Finish by: {calculateEstimatedTime(sortedItems, index)}
+                      </div>
                     )}
                   </div>
                 )}
@@ -768,7 +793,9 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
+                  <>
+                    <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
+                  </>
                 )}
 
                 {!item.isEditing && (
@@ -790,7 +817,10 @@ function App() {
                 )}
               </div>
               <div className="item-details">
-                {/* Remove duplicate estimation field */}
+                {/* Temporary debug info */}
+                <div className="debug-info" style={{ fontSize: '0.8em', color: '#666', marginTop: '5px' }}>
+                  ID: {item.id} | Index: {index} | Position: {item.priority}
+                </div>
               </div>
             </div>
           </article>
