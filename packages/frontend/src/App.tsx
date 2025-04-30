@@ -216,6 +216,23 @@ function App() {
 
       // Refresh the items list
       await fetchItems();
+
+      // Highlight the moved item
+      setItems(prevItems =>
+        prevItems.map(item =>
+          item.id === selectedItem ? { ...item, highlight: true } : item
+        )
+      );
+
+      // Clear highlight after delay
+      setTimeout(() => {
+        setItems(prevItems =>
+          prevItems.map(item =>
+            item.id === selectedItem ? { ...item, highlight: false } : item
+          )
+        );
+      }, 1500);
+
       setSelectedItem(null);
     } catch (error) {
       console.error('Error moving item:', error);
