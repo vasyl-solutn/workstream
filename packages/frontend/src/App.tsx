@@ -5,6 +5,8 @@ import Modal from './components/Modal'
 import { IoAdd, IoTrashOutline, IoMove, IoPlay, IoStop } from 'react-icons/io5'
 import { Item, CreateItemDto } from '@workstream/shared'
 
+// Force refreshing the Item type to include startedAt field
+// The Item interface should have: startedAt?: string | null
 interface ExtendedItem extends Item {
   highlight?: boolean;
   isEditing?: boolean;
@@ -14,6 +16,7 @@ interface ExtendedItem extends Item {
   previousId?: string | null;
   nextId?: string | null;
   isNew?: boolean;
+  startedAt?: string | null; // This should be defined in the shared Item interface
 }
 
 // Item component for rendering each item
@@ -218,44 +221,56 @@ function App() {
     const timer = setInterval(() => {
       setItems(prevItems =>
         prevItems.map(item => {
-          if (item.isRunning && item.remainingSeconds && item.remainingSeconds > 0) {
-            return { ...item, remainingSeconds: item.remainingSeconds - 1 };
-          } else if (item.isRunning && item.remainingSeconds === 0) {
-            if (audioRef.current) {
-              audioRef.current.play().catch(error => console.log('Audio play failed:', error));
-            }
-            if (item.id) {
-              setCompletedTimerId(item.id);
-            }
-            // Update estimation in backend
-            const updateEstimation = async () => {
-              try {
-                const response = await fetch(`${API_URL}/items/${item.id}`, {
-                  method: 'PUT',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    title: item.title,
-                    estimation: Math.ceil((item.remainingSeconds || 0) / 60), // Convert back to minutes
-                    priority: item.priority
-                  }),
-                });
+          if (item.isRunning && item.startedAt) {
+            // Calculate remaining time based on startedAt timestamp
+            const startTime = new Date(item.startedAt).getTime();
+            const now = new Date().getTime();
+            const elapsedSeconds = Math.floor((now - startTime) / 1000);
+            const totalSeconds = Math.floor(item.estimation * 60);
+            const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
 
-                if (!response.ok) throw new Error('Failed to update estimation');
-
-                const updatedItem = await response.json();
-                setItems(prevItems =>
-                  prevItems.map(i =>
-                    i.id === item.id ? { ...i, isRunning: false, estimation: updatedItem.estimation } : i
-                  )
-                );
-              } catch (error) {
-                console.error('Error updating estimation:', error);
+            if (remainingSeconds === 0) {
+              if (audioRef.current) {
+                audioRef.current.play().catch(error => console.log('Audio play failed:', error));
               }
-            };
-            updateEstimation();
-            return { ...item, isRunning: false };
+              if (item.id) {
+                setCompletedTimerId(item.id);
+              }
+
+              // Update estimation in backend and reset startedAt
+              const updateEstimation = async () => {
+                try {
+                  const response = await fetch(`${API_URL}/items/${item.id}`, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      title: item.title,
+                      estimation: 0,
+                      estimationFormat: 'time',
+                      priority: item.priority,
+                      startedAt: null  // Reset startedAt when timer completes
+                    }),
+                  });
+
+                  if (!response.ok) throw new Error('Failed to update estimation');
+
+                  const updatedItem = await response.json();
+                  setItems(prevItems =>
+                    prevItems.map(i =>
+                      i.id === item.id ? { ...i, isRunning: false, estimation: updatedItem.estimation, startedAt: null } : i
+                    )
+                  );
+                } catch (error) {
+                  console.error('Error updating estimation:', error);
+                }
+              };
+              updateEstimation();
+              return { ...item, isRunning: false, remainingSeconds: 0, startedAt: null };
+            }
+
+            return { ...item, remainingSeconds };
           }
           return item;
         })
@@ -265,13 +280,42 @@ function App() {
     return () => clearInterval(timer);
   }, []);
 
-  // Fetch all items
+  // Fetch all items and setup timer states
   const fetchItems = async () => {
     try {
       const response = await fetch(`${API_URL}/items`);
       if (!response.ok) throw new Error('Failed to fetch items');
       const data = await response.json();
-      setItems(data);
+
+      // Process items to set up timer states based on startedAt
+      const processedItems = data.map((item: any) => {
+        if (item.startedAt) {
+          const startTime = new Date(item.startedAt).getTime();
+          const now = new Date().getTime();
+          const elapsedSeconds = Math.floor((now - startTime) / 1000);
+          const totalSeconds = Math.floor(item.estimation * 60);
+          const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+
+          // If timer should be running
+          if (remainingSeconds > 0) {
+            return {
+              ...item,
+              isRunning: true,
+              remainingSeconds
+            };
+          } else {
+            // Timer should have completed - will be reset on next render
+            return {
+              ...item,
+              isRunning: false,
+              remainingSeconds: 0
+            };
+          }
+        }
+        return item;
+      });
+
+      setItems(processedItems);
     } catch (error) {
       console.error('Error fetching items:', error);
     }
@@ -682,31 +726,62 @@ function App() {
   };
 
   const handleStartTimer = (item: ExtendedItem) => {
+    const now = new Date().toISOString();
+
+    // Update backend with startedAt timestamp
+    const updateStartTime = async () => {
+      try {
+        const response = await fetch(`${API_URL}/items/${item.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: item.title,
+            estimation: item.estimation,
+            estimationFormat: 'time',
+            priority: item.priority,
+            startedAt: now
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to update start time');
+
+        // No need to update local state here, as the regular timer effect will handle it
+      } catch (error) {
+        console.error('Error updating start time:', error);
+      }
+    };
+
+    updateStartTime();
+
+    // Update local state immediately
     setItems(prevItems =>
       prevItems.map(i =>
         i.id === item.id
-          ? { ...i, isRunning: true, remainingSeconds: (item.estimation * 60) }
+          ? {
+              ...i,
+              isRunning: true,
+              remainingSeconds: Math.floor(item.estimation * 60),
+              startedAt: now
+            }
           : i
       )
     );
   };
 
   const handleStopTimer = (item: ExtendedItem) => {
-    setItems(prevItems =>
-      prevItems.map(i =>
-        i.id === item.id
-          ? { ...i, isRunning: false }
-          : i
-      )
-    );
+    // Calculate remaining time based on elapsed time
+    const startTime = item.startedAt ? new Date(item.startedAt).getTime() : 0;
+    const now = new Date().getTime();
+    const elapsedSeconds = Math.floor((now - startTime) / 1000);
+    const totalSeconds = Math.floor(item.estimation * 60);
+    const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+    const newEstimation = remainingSeconds / 60;
 
-    // Update estimation in backend when timer is stopped
+    // Update backend: save remaining time and reset startedAt
     const updateEstimation = async () => {
       try {
-        const remainingMinutes = Math.floor((item.remainingSeconds || 0) / 60);
-        const remainingSeconds = (item.remainingSeconds || 0) % 60;
-        const newEstimation = remainingMinutes + (remainingSeconds / 60);
-
         const response = await fetch(`${API_URL}/items/${item.id}`, {
           method: 'PUT',
           headers: {
@@ -716,7 +791,8 @@ function App() {
             title: item.title,
             estimation: newEstimation,
             estimationFormat: 'time',
-            priority: item.priority
+            priority: item.priority,
+            startedAt: null // Reset startedAt when stopped
           }),
         });
 
@@ -725,13 +801,28 @@ function App() {
         await response.json();
         setItems(prevItems =>
           prevItems.map(i =>
-            i.id === item.id ? { ...i, estimation: newEstimation, estimationFormat: 'time' } : i
+            i.id === item.id ? {
+              ...i,
+              estimation: newEstimation,
+              estimationFormat: 'time',
+              startedAt: null
+            } : i
           )
         );
       } catch (error) {
         console.error('Error updating estimation:', error);
       }
     };
+
+    // Update local state immediately
+    setItems(prevItems =>
+      prevItems.map(i =>
+        i.id === item.id
+          ? { ...i, isRunning: false, startedAt: null }
+          : i
+      )
+    );
+
     updateEstimation();
   };
 

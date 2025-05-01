@@ -5,6 +5,15 @@ import * as admin from 'firebase-admin';
 import { CreateItemDto, Item } from '@workstream/shared';
 import { ParamsDictionary } from 'express-serve-static-core';
 
+// Ensure Item type is correctly including startedAt
+type ItemUpdate = {
+  title: string;
+  estimation?: number;
+  estimationFormat?: 'points' | 'time';
+  priority?: number;
+  startedAt?: string | null;
+};
+
 type AsyncRequestHandler<P = ParamsDictionary, ResBody = any, ReqBody = any> = (
   req: Request<P, ResBody, ReqBody>,
   res: Response
@@ -61,10 +70,10 @@ app.get('/items', async (req: Request, res: Response) => {
 });
 
 // Add a new item
-app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto>, res: Response) => {
+app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto & { startedAt?: string | null }>, res: Response) => {
   const startTime = performance.now();
   try {
-    const { title, estimation, estimationFormat, priority, previousId, nextId } = req.body;
+    const { title, estimation, estimationFormat, priority, previousId, nextId, startedAt } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -75,7 +84,8 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto>, r
       estimation: estimation || 0,
       estimationFormat: estimationFormat || 'points',
       priority: priority || 0,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...(startedAt !== undefined && { startedAt })
     };
 
     let newItem;
@@ -144,13 +154,13 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto>, r
     console.error('Error adding item:', error);
     res.status(500).json({ error: 'Failed to add item' });
   }
-}) as AsyncRequestHandler<ParamsDictionary, any, CreateItemDto>);
+}) as AsyncRequestHandler<ParamsDictionary, any, CreateItemDto & { startedAt?: string | null }>);
 
 // Update an item
-app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, any, Partial<Item>>, res: Response) => {
+app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, any, ItemUpdate>, res: Response) => {
   try {
     const { id } = req.params;
-    const { title, estimation, estimationFormat, priority } = req.body;
+    const { title, estimation, estimationFormat, priority, startedAt } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -170,7 +180,8 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
       title,
       ...(estimation !== undefined && { estimation }),
       ...(estimationFormat && { estimationFormat }),
-      ...(priority !== undefined && { priority })
+      ...(priority !== undefined && { priority }),
+      ...(startedAt !== undefined && { startedAt })
     });
 
     console.info(`Database update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
@@ -184,7 +195,7 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
     console.error('Error updating item:', error);
     res.status(500).json({ error: 'Failed to update item' });
   }
-}) as AsyncRequestHandler<ParamsDictionary & { id: string }, any, Partial<Item>>);
+}) as AsyncRequestHandler<ParamsDictionary & { id: string }, any, ItemUpdate>);
 
 // Delete an item
 app.delete('/items/:id', (async (req: Request<ParamsDictionary & { id: string }>, res: Response) => {
