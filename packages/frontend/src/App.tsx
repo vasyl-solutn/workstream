@@ -111,7 +111,7 @@ const ItemComponent = ({
                 </div>
                 {item.estimationFormat === 'time' && (
                   <div style={{ fontSize: '0.7em', color: '#666', marginTop: '2px', textAlign: 'left' }}>
-                    Finish by: {calculateEstimatedTime(sortedItems, index)}
+                    by: {calculateEstimatedTime(sortedItems, index)}
                   </div>
                 )}
               </div>
