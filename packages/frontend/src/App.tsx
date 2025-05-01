@@ -44,7 +44,8 @@ const ItemComponent = ({
   handleCancelNewItem,
   handleMove,
   setSelectedItem,
-  handleAddBetween
+  handleAddBetween,
+  isAnyItemEditing
 }: {
   item: ExtendedItem;
   index: number;
@@ -70,6 +71,7 @@ const ItemComponent = ({
   handleMove: (previousId: string | null, nextId: string | null) => Promise<void>;
   setSelectedItem: React.Dispatch<React.SetStateAction<string | null>>;
   handleAddBetween: (previousId: string | null, nextId: string | null) => void;
+  isAnyItemEditing: boolean;
 }) => {
   return (
     <div className="item-wrapper">
@@ -81,6 +83,7 @@ const ItemComponent = ({
               sortedItems[index - 1]?.id || null,
               item.id || null
             )}
+            disabled={isAnyItemEditing}
           >
             <IoAdd />
           </button>
@@ -101,7 +104,7 @@ const ItemComponent = ({
               <div className="timer-container" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <span
-                    className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
+                    className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''} ${isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? 'non-editable' : ''}`}
                     onClick={() => handleEstimationEdit(item)}
                   >
                     {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
@@ -180,7 +183,12 @@ const ItemComponent = ({
               </div>
             ) : (
               <>
-                <h3 onClick={() => handleTitleEdit(item)}>{item.title}</h3>
+                <h3
+                  onClick={() => handleTitleEdit(item)}
+                  className={isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? "non-editable" : ""}
+                >
+                  {item.title}
+                </h3>
               </>
             )}
 
@@ -480,6 +488,14 @@ function App() {
   const sortedItems = [...items].sort((a, b) => a.priority - b.priority);
 
   const handleAddBetween = (previousId: string | null, nextId: string | null) => {
+    // Check if any item is currently being edited
+    const isAnyItemEditing = items.some(item => item.isEditing || item.isEditingEstimation || item.isNew);
+
+    // Don't allow adding a new item if another item is being edited
+    if (isAnyItemEditing) {
+      return;
+    }
+
     // Find the items to calculate the right priority
     const prevItem = previousId ? items.find(item => item.id === previousId) : null;
     const nextItem = nextId ? items.find(item => item.id === nextId) : null;
@@ -627,14 +643,18 @@ function App() {
     setEditingTitle('');
     setEditingEstimationText('');
 
-    // Reset editing state
+    // Remove temporary items and reset editing state for others
     setItems(prevItems =>
-      prevItems.map(i => ({
-        ...i,
-        isEditing: false,
-        isEditingEstimation: false,
-        isNew: false
-      }))
+      prevItems
+        // Filter out temporary new items that don't have an ID
+        .filter(i => !i.isNew || i.id)
+        // Reset editing state for remaining items
+        .map(i => ({
+          ...i,
+          isEditing: false,
+          isEditingEstimation: false,
+          isNew: false
+        }))
     );
   };
 
@@ -650,6 +670,16 @@ function App() {
   };
 
   const handleTitleEdit = (item: ExtendedItem) => {
+    // Check if any other item is being edited
+    const isAnyOtherItemEditing = items.some(i =>
+      (i.id !== item.id) && (i.isEditing || i.isEditingEstimation || i.isNew)
+    );
+
+    // Don't allow editing if another item is already being edited
+    if (isAnyOtherItemEditing) {
+      return;
+    }
+
     setItems(prevItems =>
       prevItems.map(i =>
         i.id === item.id ? { ...i, isEditing: true } : i
@@ -660,6 +690,16 @@ function App() {
   };
 
   const handleEstimationEdit = (item: ExtendedItem) => {
+    // Check if any other item is being edited
+    const isAnyOtherItemEditing = items.some(i =>
+      (i.id !== item.id) && (i.isEditing || i.isEditingEstimation || i.isNew)
+    );
+
+    // Don't allow editing if another item is already being edited
+    if (isAnyOtherItemEditing) {
+      return;
+    }
+
     setItems(prevItems =>
       prevItems.map(i =>
         i.id === item.id ? { ...i, isEditingEstimation: true } : i
@@ -974,6 +1014,8 @@ function App() {
     }
   };
 
+  const isAnyItemEditing = items.some(item => item.isEditing || item.isEditingEstimation || item.isNew);
+
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
       {isLoading && (
@@ -1003,6 +1045,7 @@ function App() {
           <button
             className="add-between-button"
             onClick={() => handleAddBetween(null, null)}
+            disabled={isAnyItemEditing}
           >
             <IoAdd />
           </button>
@@ -1036,6 +1079,7 @@ function App() {
           handleMove={handleMove}
           setSelectedItem={setSelectedItem}
           handleAddBetween={handleAddBetween}
+          isAnyItemEditing={isAnyItemEditing}
         />
       ))}
 
@@ -1056,6 +1100,7 @@ function App() {
               sortedItems[sortedItems.length - 1]?.id || null,
               null
             )}
+            disabled={isAnyItemEditing}
           >
             <IoAdd />
           </button>

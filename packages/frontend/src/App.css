@@ -548,12 +548,17 @@ h1, h2 {
   height: 24px;
 }
 
+.add-between-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.3 !important;
+}
+
 .item-wrapper:hover .add-between-button,
 .add-between-button:hover {
   opacity: 1;
 }
 
-.add-between-button:hover {
+.add-between-button:hover:not(:disabled) {
   color: #0066cc;
 }
 
@@ -642,15 +647,6 @@ h1, h2 {
   justify-content: center;
 }
 
-.add-between-button {
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.item-wrapper:hover .add-between-button {
-  opacity: 1;
-}
-
 .dot-button {
   width: 20px;
   height: 20px;
@@ -669,7 +665,13 @@ h1, h2 {
   line-height: 1;
 }
 
-.dot-button:hover {
+.dot-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.3 !important;
+  background: #b7c5d3;
+}
+
+.dot-button:hover:not(:disabled) {
   opacity: 1;
 }
 
@@ -856,4 +858,15 @@ h1, h2 {
   font-size: 14px;
   height: 28px;
   line-height: 1;
+}
+
+.item-header h3.non-editable,
+.estimation.non-editable {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.item-header h3.non-editable:hover,
+.estimation.non-editable:hover {
+  background-color: transparent;
 }
