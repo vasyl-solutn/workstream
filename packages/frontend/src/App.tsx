@@ -25,6 +25,9 @@ const ItemComponent = ({
   index,
   selectedItem,
   handleTitleEdit,
+  handleEstimationEdit,
+  handleEstimationSave,
+  handleEstimationCancel,
   handleStartTimer,
   handleStopTimer,
   deleteItem,
@@ -47,6 +50,9 @@ const ItemComponent = ({
   index: number;
   selectedItem: string | null;
   handleTitleEdit: (item: ExtendedItem) => void;
+  handleEstimationEdit: (item: ExtendedItem) => void;
+  handleEstimationSave: (item: ExtendedItem) => void;
+  handleEstimationCancel: (item: ExtendedItem) => void;
   handleStartTimer: (item: ExtendedItem) => void;
   handleStopTimer: (item: ExtendedItem) => void;
   deleteItem: (id: string | undefined) => Promise<void>;
@@ -91,12 +97,12 @@ const ItemComponent = ({
       <article className={`item-card ${selectedItem === item.id ? 'selected' : ''} ${item.highlight ? 'highlight' : ''}`}>
         <div className="item-content">
           <div className="item-header">
-            {!item.isEditing && (
+            {!item.isEditing && !item.isEditingEstimation && (
               <div className="timer-container" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <span
                     className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''}`}
-                    onClick={() => handleTitleEdit(item)}
+                    onClick={() => handleEstimationEdit(item)}
                   >
                     {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
                   </span>
@@ -117,6 +123,29 @@ const ItemComponent = ({
                     by: {calculateEstimatedTime(sortedItems, index)}
                   </div>
                 )}
+              </div>
+            )}
+            {item.isEditingEstimation && (
+              <div className="estimation-edit">
+                <input
+                  type="text"
+                  value={editingEstimationText}
+                  onChange={(e) => setEditingEstimationText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleEstimationSave(item);
+                    } else if (e.key === 'Escape') {
+                      handleEstimationCancel(item);
+                    }
+                  }}
+                  placeholder="Estimation (number or MM:SS)"
+                  className="estimation-input"
+                  autoFocus
+                />
+                <div className="edit-actions">
+                  <button onClick={() => handleEstimationSave(item)}>Save</button>
+                  <button onClick={() => handleEstimationCancel(item)}>Cancel</button>
+                </div>
               </div>
             )}
             {item.isEditing ? (
@@ -641,6 +670,7 @@ function App() {
 
   const handleEstimationSave = async (item: ExtendedItem) => {
     const value = editingEstimationText;
+    let updated = false;
 
     // If it's a time format, validate and convert to minutes
     if (value.includes(':')) {
@@ -672,6 +702,7 @@ function App() {
               i.id === item.id ? { ...i, estimation: newEstimation, estimationFormat: 'time', isEditingEstimation: false } : i
             )
           );
+          updated = true;
         } catch (error) {
           console.error('Error updating estimation:', error);
           alert('Failed to update estimation');
@@ -707,6 +738,7 @@ function App() {
               i.id === item.id ? { ...i, estimation: num, estimationFormat: 'points', isEditingEstimation: false } : i
             )
           );
+          updated = true;
         } catch (error) {
           console.error('Error updating estimation:', error);
           alert('Failed to update estimation');
@@ -714,6 +746,11 @@ function App() {
           setIsLoading(false);
         }
       }
+    }
+
+    // If update failed, still need to cancel editing mode
+    if (!updated) {
+      handleEstimationCancel(item);
     }
   };
 
@@ -979,6 +1016,9 @@ function App() {
           index={index}
           selectedItem={selectedItem}
           handleTitleEdit={handleTitleEdit}
+          handleEstimationEdit={handleEstimationEdit}
+          handleEstimationSave={handleEstimationSave}
+          handleEstimationCancel={handleEstimationCancel}
           handleStartTimer={handleStartTimer}
           handleStopTimer={handleStopTimer}
           deleteItem={deleteItem}
