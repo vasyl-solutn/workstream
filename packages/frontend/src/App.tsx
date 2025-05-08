@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import './App.css'
 import { API_URL } from './config/api'
 import Modal from './components/Modal'
@@ -47,8 +47,7 @@ const ItemComponent = ({
   handleAddBetween,
   isAnyItemEditing,
   handleSetParent,
-  parentSearchTerm,
-  setParentSearchTerm
+  availableParentOptions
 }: {
   item: ExtendedItem;
   index: number;
@@ -76,9 +75,23 @@ const ItemComponent = ({
   handleAddBetween: (previousId: string | null, nextId: string | null) => void;
   isAnyItemEditing: boolean;
   handleSetParent: (itemId: string, parentId: string | null) => Promise<void>;
-  parentSearchTerm: string;
-  setParentSearchTerm: React.Dispatch<React.SetStateAction<string>>;
+  availableParentOptions: (itemId: string) => ExtendedItem[];
 }) => {
+  // State for parent search
+  const [parentSearchTerm, setParentSearchTerm] = React.useState('');
+
+  // Filter parent options based on search term
+  const filteredParentOptions = React.useMemo(() => {
+    if (!item.id) return [];
+
+    const options = availableParentOptions(item.id);
+    if (!parentSearchTerm.trim()) return options;
+
+    return options.filter(parent =>
+      parent.title.toLowerCase().includes(parentSearchTerm.toLowerCase())
+    );
+  }, [item.id, availableParentOptions, parentSearchTerm]);
+
   return (
     <div className="item-wrapper">
       <div className="action-buttons">
@@ -174,8 +187,10 @@ const ItemComponent = ({
                   onChange={(e) => setEditingTitle(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
+                      console.log("Enter pressed, saving item:", item);
                       handleSaveNewItem(item);
                     } else if (e.key === 'Escape') {
+                      console.log("Escape pressed, canceling item");
                       handleCancelNewItem();
                     }
                   }}
@@ -183,8 +198,18 @@ const ItemComponent = ({
                   autoFocus
                 />
                 <div className="edit-actions">
-                  <button onClick={() => handleSaveNewItem(item)}>Save</button>
-                  <button onClick={() => handleCancelNewItem()}>Cancel</button>
+                  <button onClick={() => {
+                    console.log("Save button clicked for item:", item);
+                    handleSaveNewItem(item);
+                  }}>
+                    Save
+                  </button>
+                  <button onClick={() => {
+                    console.log("Cancel button clicked");
+                    handleCancelNewItem();
+                  }}>
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : (
@@ -216,54 +241,62 @@ const ItemComponent = ({
               </div>
             )}
           </div>
-          <div className="item-details">
+          <div className="item-details" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
             {selectedItem === item.id && (
-              <div className="parent-selection">
-                <div className="parent-search">
+              <div className="parent-selection" style={{ width: '100%', padding: '10px 0' }}>
+                <div className="parent-search" style={{ width: '100%', maxWidth: '400px' }}>
                   <input
                     type="text"
-                    placeholder="Search parent task..."
-                    className="parent-search-input"
+                    placeholder="Search parents..."
                     value={parentSearchTerm}
                     onChange={(e) => setParentSearchTerm(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      marginBottom: '10px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px'
+                    }}
                   />
-                  <div className="parent-options">
+                  <div className="parent-options" style={{ width: '100%', maxHeight: '300px', overflowY: 'auto' }}>
                     <button
                       className="parent-option"
                       onClick={() => handleSetParent(item.id || '', null)}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '8px 12px',
+                        backgroundColor: !item.parentId ? '#f0f0f0' : 'transparent',
+                        fontWeight: !item.parentId ? 'bold' : 'normal',
+                        borderBottom: '1px solid #eee'
+                      }}
                     >
-                      No Parent
+                      No Parent (Root Level)
                     </button>
-                    {sortedItems
-                      .filter(i => i.id !== item.id)
-                      .filter(i => i.title.toLowerCase().includes(parentSearchTerm.toLowerCase()))
-                      .map(potentialParent => {
-                        // Get the full path for this parent
-                        const getParentPath = (parentId: string | null | undefined, visited = new Set<string>()): string[] => {
-                          if (!parentId) return [];
-                          if (visited.has(parentId)) return []; // Prevent circular references
-                          visited.add(parentId);
 
-                          const parent = sortedItems.find(i => i.id === parentId);
-                          if (!parent) return [];
-                          return [...getParentPath(parent.parentId, visited), parent.title];
-                        };
-
-                        const parentPath = getParentPath(potentialParent.id);
-                        const displayPath = parentPath.length > 0
-                          ? `${parentPath.join(' > ')} > ${potentialParent.title}`
-                          : potentialParent.title;
-
-                        return (
-                          <button
-                            key={`parent-${potentialParent.id}`}
-                            className="parent-option"
-                            onClick={() => handleSetParent(item.id || '', potentialParent.id || null)}
-                          >
-                            {displayPath}
-                          </button>
-                        );
-                      })}
+                    {item.id && filteredParentOptions.length > 0 ? (
+                      filteredParentOptions.map(potentialParent => (
+                        <button
+                          key={potentialParent.id}
+                          className="parent-option"
+                          onClick={() => handleSetParent(item.id || '', potentialParent.id || null)}
+                          style={{
+                            width: '100%',
+                            textAlign: 'left',
+                            padding: '8px 12px',
+                            backgroundColor: item.parentId === potentialParent.id ? '#f0f0f0' : 'transparent',
+                            fontWeight: item.parentId === potentialParent.id ? 'bold' : 'normal',
+                            borderBottom: '1px solid #eee'
+                          }}
+                        >
+                          {potentialParent.title}
+                        </button>
+                      ))
+                    ) : parentSearchTerm.trim() ? (
+                      <p className="no-parents" style={{ padding: '8px 12px' }}>No matching parents found</p>
+                    ) : (
+                      <p className="no-parents" style={{ padding: '8px 12px' }}>No other items available to use as parent</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -276,6 +309,14 @@ const ItemComponent = ({
 };
 
 function App() {
+  console.log("App component rendering");
+  const renderCount = useRef(0);
+
+  useEffect(() => {
+    renderCount.current++;
+    console.log(`App rendered ${renderCount.current} times`);
+  });
+
   const [items, setItems] = useState<ExtendedItem[]>([])
   const [allItems, setAllItems] = useState<ExtendedItem[]>([])
   const [formData, setFormData] = useState<CreateItemDto>({
@@ -296,12 +337,6 @@ function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [editingEstimationText, setEditingEstimationText] = useState('');
   const [currentParentFilters, setCurrentParentFilters] = useState<string[]>([]);
-  const [parentSearchTerm, setParentSearchTerm] = useState('');
-
-  // Reset parent search when selection changes
-  useEffect(() => {
-    setParentSearchTerm('');
-  }, [selectedItem]);
 
   // Initialize audio
   useEffect(() => {
@@ -318,31 +353,56 @@ function App() {
     }
   }, [completedTimerId]);
 
-  // Timer effect
+  // Timer effect - only run when needed
   useEffect(() => {
+    // Only set up timer if we have running items
+    const hasRunningItems = items.some(item => item.isRunning);
+    console.log('Timer effect - checking for running items:', hasRunningItems ? 'yes' : 'no');
+
+    if (!hasRunningItems) {
+      return; // Don't set up timer if no running items
+    }
+
+    console.log("Setting up timer effect for running items");
+
     const timer = setInterval(() => {
-      setItems(prevItems =>
-        prevItems.map(item => {
+      // Check again inside interval in case items changed
+      setItems(prevItems => {
+        // Only process if we have running items
+        const runningItems = prevItems.filter(item => item.isRunning && item.startedAt);
+        if (runningItems.length === 0) {
+          return prevItems; // No need to update
+        }
+
+        console.log(`Processing ${runningItems.length} running items`);
+
+        // Check if any items need updates
+        let needsUpdate = false;
+        const updatedItems = prevItems.map(item => {
           if (item.isRunning && item.startedAt) {
-            // Calculate remaining time based on startedAt timestamp
+            // Calculate remaining time
             const startTime = new Date(item.startedAt).getTime();
             const now = new Date().getTime();
             const elapsedSeconds = Math.floor((now - startTime) / 1000);
             const totalSeconds = Math.floor(item.estimation * 60);
             const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
 
-            if (remainingSeconds === 0) {
-              if (audioRef.current) {
-                audioRef.current.play().catch(error => console.log('Audio play failed:', error));
-              }
-              if (item.id) {
-                setCompletedTimerId(item.id);
-              }
+            // Only update if time changed or completed
+            if (item.remainingSeconds !== remainingSeconds) {
+              needsUpdate = true;
 
-              // Update estimation in backend and reset startedAt
-              const updateEstimation = async () => {
-                try {
-                  const response = await fetch(`${API_URL}/items/${item.id}`, {
+              if (remainingSeconds === 0) {
+                // Timer completed
+                if (audioRef.current) {
+                  audioRef.current.play().catch(error => console.log('Audio play failed:', error));
+                }
+                if (item.id) {
+                  setCompletedTimerId(item.id);
+                }
+
+                // Handle backend update separately
+                if (item.id) {
+                  fetch(`${API_URL}/items/${item.id}`, {
                     method: 'PUT',
                     headers: {
                       'Content-Type': 'application/json',
@@ -352,35 +412,39 @@ function App() {
                       estimation: 0,
                       estimationFormat: 'time',
                       priority: item.priority,
-                      startedAt: null  // Reset startedAt when timer completes
+                      startedAt: null
                     }),
+                  }).then(response => {
+                    if (response.ok) return response.json();
+                    throw new Error('Failed to update estimation');
+                  }).then(() => {
+                    // We'll handle this in the next cycle
+                    console.log('Timer completed, backend updated');
+                  }).catch(error => {
+                    console.error('Error updating estimation:', error);
                   });
-
-                  if (!response.ok) throw new Error('Failed to update estimation');
-
-                  const updatedItem = await response.json();
-                  setItems(prevItems =>
-                    prevItems.map(i =>
-                      i.id === item.id ? { ...i, isRunning: false, estimation: updatedItem.estimation, startedAt: null } : i
-                    )
-                  );
-                } catch (error) {
-                  console.error('Error updating estimation:', error);
                 }
-              };
-              updateEstimation();
-              return { ...item, isRunning: false, remainingSeconds: 0, startedAt: null };
-            }
 
-            return { ...item, remainingSeconds };
+                return { ...item, isRunning: false, remainingSeconds: 0, startedAt: null };
+              }
+
+              return { ...item, remainingSeconds };
+            }
           }
+
           return item;
-        })
-      );
+        });
+
+        // Only return new array if something changed
+        return needsUpdate ? updatedItems : prevItems;
+      });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, []);
+    return () => {
+      console.log("Cleaning up timer effect");
+      clearInterval(timer);
+    };
+  }, [items]); // Depend on items but be careful within the effect
 
   // Fetch all items and setup timer states
   const fetchItems = async (parentIds: string[] = currentParentFilters) => {
@@ -397,8 +461,8 @@ function App() {
         parentIds.forEach(id => params.append('parentId', id));
         url += `?${params.toString()}`;
       } else {
-        // If no parents selected, show root level items
-        url += '?parentId=null';
+        // Explicitly add parentId=null when no filters are selected
+        url += `?parentId=null`;
       }
 
       console.log('Fetching with URL:', url);
@@ -406,6 +470,7 @@ function App() {
 
       if (!response.ok) throw new Error('Failed to fetch items');
       const data = await response.json();
+      console.log('Received data from backend:', data.length, 'items');
 
       // Process items to set up timer states
       const processedItems = data.map((item: ExtendedItem) => {
@@ -435,6 +500,7 @@ function App() {
         return item;
       });
 
+      console.log('Setting processed items:', processedItems.length, 'items');
       setItems(processedItems);
 
       // Fetch all items for the dropdown
@@ -482,15 +548,21 @@ function App() {
 
     setIsLoading(true);
     try {
+      // Always include parentId, even when null
+      const requestBody: {
+        title: string;
+        parentId: string | null;
+      } = {
+        title: items.find(item => item.id === itemId)?.title || '',
+        parentId: parentId
+      };
+
       const response = await fetch(`${API_URL}/items/${itemId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          parentId,
-          title: items.find(item => item.id === itemId)?.title || ''
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) throw new Error('Failed to update parent');
@@ -543,17 +615,20 @@ function App() {
 
     setIsLoading(true);
     try {
+      // Prepare the request body
+      const requestBody = {
+        ...formData,
+        previousId: currentContext.previousId,
+        nextId: currentContext.nextId,
+        parentId: currentParentFilters.length > 0 ? currentParentFilters[0] : null
+      };
+
       const response = await fetch(`${API_URL}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...formData,
-          previousId: currentContext.previousId,
-          nextId: currentContext.nextId,
-          parentId: currentParentFilters.length > 0 ? currentParentFilters[0] : null
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -584,8 +659,9 @@ function App() {
 
   // Load items on initial render
   useEffect(() => {
+    console.log("Initial items load triggered");
     fetchItems()
-  }, [])
+  }, [])  // Empty dependency array means this runs once on mount
 
   // Delete an item
   const deleteItem = async (id: string | undefined) => {
@@ -652,14 +728,89 @@ function App() {
     }
   };
 
-  const sortedItems = [...items].sort((a, b) => a.priority - b.priority);
+  // Helper to generate a stable key for items to avoid unnecessary recalculations
+  function getItemsKey(items: ExtendedItem[]): string {
+    console.log('Calculating items key');
+
+    // Check for any new items
+    const hasNewItems = items.some(item => item.isNew);
+    if (hasNewItems) {
+      console.log('Found new items, forcing recalculation');
+      // Force recalculation when we have new items
+      return Date.now().toString();
+    }
+
+    return items
+      .filter(item => !!item.id) // Only include stable items with IDs
+      .map(item => {
+        // Only include fields that affect sorting and rendering
+        const { id, priority, isEditing, isEditingEstimation, isRunning } = item;
+        return `${id}:${priority}:${isEditing}:${isEditingEstimation}:${isRunning}`;
+      })
+      .sort() // Sort to ensure stable order regardless of array order
+      .join('|');
+  }
+
+  // Store the last items key to detect changes
+  const lastItemsKeyRef = useRef<string>('');
+  // Use a ref to maintain stable identity of sorted items
+  const sortedItemsRef = useRef<ExtendedItem[]>([]);
+
+  // More efficient memoization with explicit dependency tracking
+  const sortedItems = useMemo(() => {
+    const currentKey = getItemsKey(items);
+
+    // Only recalculate if the key changed
+    if (currentKey === lastItemsKeyRef.current && sortedItemsRef.current.length > 0) {
+      console.log('Skipping sort recalculation - no relevant changes');
+      return sortedItemsRef.current;
+    }
+
+    console.log('Recalculating sorted items - key changed');
+    lastItemsKeyRef.current = currentKey;
+
+    // Include all items - both stable ones with IDs and temporary new ones
+    // Only exclude items that don't make sense to display
+    const newItems = items.filter(item => item.isNew);
+    console.log('New items found:', newItems.length, newItems);
+
+    const itemsToSort = items.filter(item =>
+      // Include items with IDs
+      !!item.id ||
+      // Include new items being created
+      item.isNew
+    );
+
+    console.log('Sorting items:', itemsToSort.length);
+
+    const newSortedItems = [...itemsToSort].sort((a, b) => a.priority - b.priority);
+    sortedItemsRef.current = newSortedItems;
+
+    return newSortedItems;
+  }, [items]); // items is the dependency, but we do manual comparison
+
+  // Memoize parent options to prevent unnecessary re-filtering
+  const availableParentOptions = useCallback((itemId: string) => {
+    console.log('Calculating parent options for item:', itemId);
+
+    // Filter out the current item and any items that have this item as a parent
+    return allItems.filter(potentialParent =>
+      // Don't show the current item as a potential parent
+      potentialParent.id !== itemId &&
+      // Don't show items that already have this item as parent to avoid cycles
+      potentialParent.parentId !== itemId
+    );
+  }, [allItems]);
 
   const handleAddBetween = (previousId: string | null, nextId: string | null) => {
+    console.log('handleAddBetween called with', { previousId, nextId });
+
     // Check if any item is currently being edited
     const isAnyItemEditing = items.some(item => item.isEditing || item.isEditingEstimation || item.isNew);
 
     // Don't allow adding a new item if another item is being edited
     if (isAnyItemEditing) {
+      console.log('Cannot add item - another item is already being edited');
       return;
     }
 
@@ -681,6 +832,9 @@ function App() {
       newPriority = nextItem.priority - 1;
     }
 
+    console.log('Creating temp item with priority:', newPriority);
+    console.log('Current parent filters:', currentParentFilters);
+
     // Create a temporary item
     const tempItem: ExtendedItem = {
       title: '',
@@ -691,11 +845,18 @@ function App() {
       isEditing: true,
       previousId,
       nextId,
-      isNew: true
+      isNew: true,
+      parentId: currentParentFilters.length > 0 ? currentParentFilters[0] : null
     };
 
+    console.log('Created temp item:', tempItem);
+
     // Add the item to the array
-    setItems(prevItems => [...prevItems, tempItem]);
+    setItems(prevItems => {
+      const newItems = [...prevItems, tempItem];
+      console.log('Items after adding temp item:', newItems.length);
+      return newItems;
+    });
 
     // Initialize editing state
     setEditingTitle('');
@@ -703,7 +864,12 @@ function App() {
   };
 
   const handleSaveNewItem = async (item: ExtendedItem) => {
-    if (!editingTitle.trim()) return;
+    console.log('handleSaveNewItem called with item:', item);
+
+    if (!editingTitle.trim()) {
+      console.log('Title is empty, not saving');
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -743,14 +909,18 @@ function App() {
         estimationFormat: estimationFormat,
         priority: item.priority,
         previousId: item.previousId,
-        nextId: item.nextId
+        nextId: item.nextId,
+        parentId: currentParentFilters.length > 0 ? currentParentFilters[0] : null
       };
+
+      console.log('Sending item data to server:', itemData);
 
       let response;
       let updatedItem;
 
       if (item.isNew) {
         // This is a new item
+        console.log('Creating new item');
         response = await fetch(`${API_URL}/items`, {
           method: 'POST',
           headers: {
@@ -759,10 +929,16 @@ function App() {
           body: JSON.stringify(itemData),
         });
 
-        if (!response.ok) throw new Error('Failed to create item');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Server error creating item:', errorText);
+          throw new Error(`Failed to create item: ${errorText}`);
+        }
         updatedItem = await response.json();
+        console.log('Server returned new item:', updatedItem);
       } else {
         // This is an existing item being edited
+        console.log('Updating existing item');
         response = await fetch(`${API_URL}/items/${item.id}`, {
           method: 'PUT',
           headers: {
@@ -771,18 +947,30 @@ function App() {
           body: JSON.stringify(itemData),
         });
 
-        if (!response.ok) throw new Error('Failed to update item');
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Server error updating item:', errorText);
+          throw new Error(`Failed to update item: ${errorText}`);
+        }
         updatedItem = await response.json();
+        console.log('Server returned updated item:', updatedItem);
       }
 
       // Update the item in the list
-      setItems(prevItems =>
-        prevItems.map(i =>
-          i.id === item.id || i.isNew
+      setItems(prevItems => {
+        console.log("handleSaveNewItem updating items");
+        console.log("Temp item to replace:", item);
+        console.log("Found items to update:", prevItems.filter(i => i.id === item.id || i.isNew).length);
+
+        const updatedItems = prevItems.map(i =>
+          (i.id === item.id || (i.isNew && !i.id)) // Match by ID or if it's a new item without ID
             ? { ...updatedItem, highlight: true, isEditing: false, isEditingEstimation: false, isNew: false }
             : i
-        )
-      );
+        );
+
+        console.log("Items after update:", updatedItems.length);
+        return updatedItems;
+      });
 
       // Clear highlight after a delay
       setTimeout(() => {
@@ -799,7 +987,7 @@ function App() {
 
     } catch (error) {
       console.error('Error saving item:', error);
-      alert('Failed to save item');
+      alert('Failed to save item: ' + (error as Error).message);
     } finally {
       setIsLoading(false);
     }
@@ -1095,7 +1283,7 @@ function App() {
 
     // Sum up all previous items' estimations plus current item
     for (let i = 0; i <= currentIndex; i++) {
-      if (items[i].estimationFormat === 'time') {
+      if (items[i] && items[i].estimationFormat === 'time') {
         totalMinutes += items[i].estimation;
       }
     }
@@ -1207,6 +1395,9 @@ function App() {
         </div>
       )}
 
+      {/* Log render information outside of JSX */}
+      {(() => { console.log('Rendering sorted items:', sortedItems.length); return null; })()}
+
       {sortedItems.map((item, index) => (
         <ItemComponent
           key={item.id}
@@ -1220,7 +1411,7 @@ function App() {
           handleStartTimer={handleStartTimer}
           handleStopTimer={handleStopTimer}
           deleteItem={deleteItem}
-          sortedItems={allItems}
+          sortedItems={sortedItems}
           calculateEstimatedTime={calculateEstimatedTime}
           completedTimerId={completedTimerId}
           formatTime={formatTime}
@@ -1236,8 +1427,7 @@ function App() {
           handleAddBetween={handleAddBetween}
           isAnyItemEditing={isAnyItemEditing}
           handleSetParent={handleSetParent}
-          parentSearchTerm={parentSearchTerm}
-          setParentSearchTerm={setParentSearchTerm}
+          availableParentOptions={availableParentOptions}
         />
       ))}
 

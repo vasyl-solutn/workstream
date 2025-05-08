@@ -65,16 +65,17 @@ router.get('/items', async (req, res) => {
       ...doc.data()
     })) as Array<Item & { id: string }>;
 
-    // Filter by parentId if needed
-    if (parentIds.length > 0) {
-      // Filter items that have any of the specified parentIds
-      items = allItems.filter(item =>
-        parentIds.includes(item.parentId as string)
-      );
-    } else if (parentId === 'null') {
+    if (parentId === 'null') {
       // Filter for root level items (no parent)
+      console.log('Filtering for root level items');
+      console.dir(allItems);
       items = allItems.filter(item => !item.parentId);
-    } else {
+    } else if (parentIds.length > 0) {
+        // Filter items that have any of the specified parentIds
+        items = allItems.filter(item =>
+          parentIds.includes(item.parentId as string)
+        );
+      } else {
       // Return all items if no filtering
       items = allItems;
     }
