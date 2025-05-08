@@ -1,26 +1,24 @@
-import express, { Request, Response, RequestHandler } from 'express';
+import express, { Express, Request, Response, Router, RequestHandler } from 'express';
 import cors from 'cors';
 import { db } from './db';
 import * as admin from 'firebase-admin';
 import { CreateItemDto, Item } from '@workstream/shared';
 import { ParamsDictionary } from 'express-serve-static-core';
+import { DocumentData, Query } from 'firebase-admin/firestore';
 
-// Ensure Item type is correctly including startedAt
+// Ensure Item type is correctly including startedAt and parentId
 type ItemUpdate = {
   title: string;
   estimation?: number;
   estimationFormat?: 'points' | 'time';
   priority?: number;
   startedAt?: string | null;
+  parentId?: string | null;
 };
 
-type AsyncRequestHandler<P = ParamsDictionary, ResBody = any, ReqBody = any> = (
-  req: Request<P, ResBody, ReqBody>,
-  res: Response
-) => Promise<void>;
-
-const app = express();
+const app: Express = express();
 const port = process.env.PORT || 8080;
+const router = express.Router() as Router;
 
 app.use(cors());
 app.use(express.json());
@@ -30,7 +28,7 @@ app.get('/', (req, res) => {
 });
 
 // Example endpoint using Firestore
-app.get('/api/test', async (req, res) => {
+router.get('/api/test', async (req, res) => {
   try {
     // Add a test document
     const docRef = await db.collection('test').add({
@@ -52,16 +50,36 @@ app.get('/api/test', async (req, res) => {
 });
 
 // Get all items
-app.get('/items', async (req: Request, res: Response) => {
+router.get('/items', async (req, res) => {
   try {
     const collectionStartTime = performance.now();
-    const snapshot = await db.collection('items').orderBy('priority').get();
-    console.info(`Database collection query took ${(performance.now() - collectionStartTime).toFixed(2)}ms`);
+    const { parentId } = req.query;
 
-    const items = snapshot.docs.map(doc => ({
+    let items: Array<Item & { id: string }> = [];
+    const parentIds = Array.isArray(parentId) ? parentId : parentId ? [parentId] : [];
+
+    // Option 1: Fetch all and filter by parentIds
+    const snapshot = await db.collection('items').orderBy('priority').get();
+    const allItems = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
-    }));
+    })) as Array<Item & { id: string }>;
+
+    // Filter by parentId if needed
+    if (parentIds.length > 0) {
+      // Filter items that have any of the specified parentIds
+      items = allItems.filter(item =>
+        parentIds.includes(item.parentId as string)
+      );
+    } else if (parentId === 'null') {
+      // Filter for root level items (no parent)
+      items = allItems.filter(item => !item.parentId);
+    } else {
+      // Return all items if no filtering
+      items = allItems;
+    }
+
+    console.info(`Database query took ${(performance.now() - collectionStartTime).toFixed(2)}ms`);
     res.json(items);
   } catch (error) {
     console.error('Error fetching items:', error);
@@ -69,14 +87,37 @@ app.get('/items', async (req: Request, res: Response) => {
   }
 });
 
+// Get a single item
+router.get('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const itemRef = db.collection('items').doc(id);
+    const item = await itemRef.get();
+
+    if (!item.exists) {
+      res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    res.json({
+      id: item.id,
+      ...item.data()
+    });
+  } catch (error) {
+    console.error('Error fetching item:', error);
+    res.status(500).json({ error: 'Failed to fetch item' });
+  }
+});
+
 // Add a new item
-app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto & { startedAt?: string | null }>, res: Response) => {
+router.post('/items', async (req, res) => {
   const startTime = performance.now();
   try {
-    const { title, estimation, estimationFormat, priority, previousId, nextId, startedAt } = req.body;
+    const { title, estimation, estimationFormat, priority, previousId, nextId, startedAt, parentId } = req.body;
 
     if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
+      res.status(400).json({ error: 'Title is required' });
+      return;
     }
 
     const itemData = {
@@ -85,7 +126,8 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto & {
       estimationFormat: estimationFormat || 'points',
       priority: priority || 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      ...(startedAt !== undefined && { startedAt })
+      ...(startedAt !== undefined && { startedAt }),
+      ...(parentId !== undefined && { parentId })
     };
 
     let newItem;
@@ -97,7 +139,8 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto & {
       ]);
 
       if (!previousItem.exists || !nextItem.exists) {
-        return res.status(404).json({ error: 'Previous or next item not found' });
+        res.status(404).json({ error: 'Previous or next item not found' });
+        return;
       }
 
       const newPriority = (previousItem.data()?.priority + nextItem.data()?.priority) / 2;
@@ -109,7 +152,8 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto & {
       // Insert after an item
       const previousItem = await db.collection('items').doc(previousId).get();
       if (!previousItem.exists) {
-        return res.status(404).json({ error: 'Previous item not found' });
+        res.status(404).json({ error: 'Previous item not found' });
+        return;
       }
 
       const newPriority = previousItem.data()?.priority + 1;
@@ -121,7 +165,8 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto & {
       // Insert before an item
       const nextItem = await db.collection('items').doc(nextId).get();
       if (!nextItem.exists) {
-        return res.status(404).json({ error: 'Next item not found' });
+        res.status(404).json({ error: 'Next item not found' });
+        return;
       }
 
       const newPriority = nextItem.data()?.priority - 1;
@@ -154,16 +199,17 @@ app.post('/items', (async (req: Request<ParamsDictionary, any, CreateItemDto & {
     console.error('Error adding item:', error);
     res.status(500).json({ error: 'Failed to add item' });
   }
-}) as AsyncRequestHandler<ParamsDictionary, any, CreateItemDto & { startedAt?: string | null }>);
+});
 
 // Update an item
-app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, any, ItemUpdate>, res: Response) => {
+router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, estimation, estimationFormat, priority, startedAt } = req.body;
+    const { title, estimation, estimationFormat, priority, startedAt, parentId } = req.body;
 
     if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
+      res.status(400).json({ error: 'Title is required' });
+      return;
     }
 
     const itemSelectStartTime = performance.now();
@@ -172,7 +218,8 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
     console.info(`Database item select took ${(performance.now() - itemSelectStartTime).toFixed(2)}ms`);
 
     if (!item.exists) {
-      return res.status(404).json({ error: 'Item not found' });
+      res.status(404).json({ error: 'Item not found' });
+      return;
     }
 
     const updateStartTime = performance.now();
@@ -181,7 +228,8 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
       ...(estimation !== undefined && { estimation }),
       ...(estimationFormat && { estimationFormat }),
       ...(priority !== undefined && { priority }),
-      ...(startedAt !== undefined && { startedAt })
+      ...(startedAt !== undefined && { startedAt }),
+      ...(parentId !== undefined && { parentId })
     });
 
     console.info(`Database update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
@@ -195,10 +243,10 @@ app.put('/items/:id', (async (req: Request<ParamsDictionary & { id: string }, an
     console.error('Error updating item:', error);
     res.status(500).json({ error: 'Failed to update item' });
   }
-}) as AsyncRequestHandler<ParamsDictionary & { id: string }, any, ItemUpdate>);
+});
 
 // Delete an item
-app.delete('/items/:id', (async (req: Request<ParamsDictionary & { id: string }>, res: Response) => {
+router.delete('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
@@ -206,7 +254,8 @@ app.delete('/items/:id', (async (req: Request<ParamsDictionary & { id: string }>
     const item = await itemRef.get();
 
     if (!item.exists) {
-      return res.status(404).json({ error: 'Item not found' });
+      res.status(404).json({ error: 'Item not found' });
+      return;
     }
 
     await itemRef.delete();
@@ -217,20 +266,21 @@ app.delete('/items/:id', (async (req: Request<ParamsDictionary & { id: string }>
     console.error('Error deleting item:', error);
     res.status(500).json({ error: 'Failed to delete item' });
   }
-}) as AsyncRequestHandler<ParamsDictionary & { id: string }>);
+});
 
 // Move an item
-app.put('/items/:id/move', (async (req: Request<ParamsDictionary & { id: string }, any, { previousId?: string; nextId?: string }>, res: Response) => {
+router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
-    const { previousId, nextId } = req.body;
+    const { previousId, nextId, parentId } = req.body;
 
     const itemRef = db.collection('items').doc(id);
     const item = await itemRef.get();
 
     if (!item.exists) {
-      return res.status(404).json({ error: 'Item not found' });
+      res.status(404).json({ error: 'Item not found' });
+      return;
     }
 
     let newPriority;
@@ -243,7 +293,8 @@ app.put('/items/:id/move', (async (req: Request<ParamsDictionary & { id: string 
       ]);
 
       if (!previousItem.exists || !nextItem.exists) {
-        return res.status(404).json({ error: 'Previous or next item not found' });
+        res.status(404).json({ error: 'Previous or next item not found' });
+        return;
       }
 
       newPriority = (previousItem.data()?.priority + nextItem.data()?.priority) / 2;
@@ -251,7 +302,8 @@ app.put('/items/:id/move', (async (req: Request<ParamsDictionary & { id: string 
       // Move after an item
       const previousItem = await db.collection('items').doc(previousId).get();
       if (!previousItem.exists) {
-        return res.status(404).json({ error: 'Previous item not found' });
+        res.status(404).json({ error: 'Previous item not found' });
+        return;
       }
 
       newPriority = previousItem.data()?.priority + 1;
@@ -259,7 +311,8 @@ app.put('/items/:id/move', (async (req: Request<ParamsDictionary & { id: string 
       // Move before an item
       const nextItem = await db.collection('items').doc(nextId).get();
       if (!nextItem.exists) {
-        return res.status(404).json({ error: 'Next item not found' });
+        res.status(404).json({ error: 'Next item not found' });
+        return;
       }
 
       newPriority = nextItem.data()?.priority - 1;
@@ -273,7 +326,13 @@ app.put('/items/:id/move', (async (req: Request<ParamsDictionary & { id: string 
       newPriority = firstItem.empty ? 0 : firstItem.docs[0].data()?.priority - 1;
     }
 
-    await itemRef.update({ priority: newPriority });
+    // Update priority and parentId if provided
+    const updateData: Record<string, any> = { priority: newPriority };
+    if (parentId !== undefined) {
+      updateData.parentId = parentId;
+    }
+
+    await itemRef.update(updateData);
     console.info(`Database move took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     const updatedItem = await itemRef.get();
@@ -285,7 +344,10 @@ app.put('/items/:id/move', (async (req: Request<ParamsDictionary & { id: string 
     console.error('Error moving item:', error);
     res.status(500).json({ error: 'Failed to move item' });
   }
-}) as AsyncRequestHandler<ParamsDictionary & { id: string }, any, { previousId?: string; nextId?: string }>);
+});
+
+// Use the router
+app.use('/', router);
 
 app.listen(Number(port), () => {
   console.log(`Server running on port ${port}`);

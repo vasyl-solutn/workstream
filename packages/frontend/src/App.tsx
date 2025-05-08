@@ -45,7 +45,10 @@ const ItemComponent = ({
   handleMove,
   setSelectedItem,
   handleAddBetween,
-  isAnyItemEditing
+  isAnyItemEditing,
+  handleSetParent,
+  parentSearchTerm,
+  setParentSearchTerm
 }: {
   item: ExtendedItem;
   index: number;
@@ -66,12 +69,15 @@ const ItemComponent = ({
   setEditingTitle: React.Dispatch<React.SetStateAction<string>>;
   editingEstimationText: string;
   setEditingEstimationText: React.Dispatch<React.SetStateAction<string>>;
-  handleSaveNewItem: (item: ExtendedItem) => Promise<void>;
+  handleSaveNewItem: (item: ExtendedItem) => void;
   handleCancelNewItem: () => void;
   handleMove: (previousId: string | null, nextId: string | null) => Promise<void>;
   setSelectedItem: React.Dispatch<React.SetStateAction<string | null>>;
   handleAddBetween: (previousId: string | null, nextId: string | null) => void;
   isAnyItemEditing: boolean;
+  handleSetParent: (itemId: string, parentId: string | null) => Promise<void>;
+  parentSearchTerm: string;
+  setParentSearchTerm: React.Dispatch<React.SetStateAction<string>>;
 }) => {
   return (
     <div className="item-wrapper">
@@ -211,6 +217,57 @@ const ItemComponent = ({
             )}
           </div>
           <div className="item-details">
+            {selectedItem === item.id && (
+              <div className="parent-selection">
+                <div className="parent-search">
+                  <input
+                    type="text"
+                    placeholder="Search parent task..."
+                    className="parent-search-input"
+                    value={parentSearchTerm}
+                    onChange={(e) => setParentSearchTerm(e.target.value)}
+                  />
+                  <div className="parent-options">
+                    <button
+                      className="parent-option"
+                      onClick={() => handleSetParent(item.id || '', null)}
+                    >
+                      No Parent
+                    </button>
+                    {sortedItems
+                      .filter(i => i.id !== item.id)
+                      .filter(i => i.title.toLowerCase().includes(parentSearchTerm.toLowerCase()))
+                      .map(potentialParent => {
+                        // Get the full path for this parent
+                        const getParentPath = (parentId: string | null | undefined, visited = new Set<string>()): string[] => {
+                          if (!parentId) return [];
+                          if (visited.has(parentId)) return []; // Prevent circular references
+                          visited.add(parentId);
+
+                          const parent = sortedItems.find(i => i.id === parentId);
+                          if (!parent) return [];
+                          return [...getParentPath(parent.parentId, visited), parent.title];
+                        };
+
+                        const parentPath = getParentPath(potentialParent.id);
+                        const displayPath = parentPath.length > 0
+                          ? `${parentPath.join(' > ')} > ${potentialParent.title}`
+                          : potentialParent.title;
+
+                        return (
+                          <button
+                            key={`parent-${potentialParent.id}`}
+                            className="parent-option"
+                            onClick={() => handleSetParent(item.id || '', potentialParent.id || null)}
+                          >
+                            {displayPath}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </article>
@@ -220,6 +277,7 @@ const ItemComponent = ({
 
 function App() {
   const [items, setItems] = useState<ExtendedItem[]>([])
+  const [allItems, setAllItems] = useState<ExtendedItem[]>([])
   const [formData, setFormData] = useState<CreateItemDto>({
     title: '',
     estimation: 0,
@@ -237,6 +295,13 @@ function App() {
   const [completedTimerId, setCompletedTimerId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [editingEstimationText, setEditingEstimationText] = useState('');
+  const [currentParentFilters, setCurrentParentFilters] = useState<string[]>([]);
+  const [parentSearchTerm, setParentSearchTerm] = useState('');
+
+  // Reset parent search when selection changes
+  useEffect(() => {
+    setParentSearchTerm('');
+  }, [selectedItem]);
 
   // Initialize audio
   useEffect(() => {
@@ -318,14 +383,32 @@ function App() {
   }, []);
 
   // Fetch all items and setup timer states
-  const fetchItems = async () => {
+  const fetchItems = async (parentIds: string[] = currentParentFilters) => {
     try {
-      const response = await fetch(`${API_URL}/items`);
+      setIsLoading(true);
+
+      // Create URL with parentIds query parameters
+      let url = `${API_URL}/items`;
+
+      // Add parent filter parameters
+      if (parentIds.length > 0) {
+        // Build query with multiple parentId parameters
+        const params = new URLSearchParams();
+        parentIds.forEach(id => params.append('parentId', id));
+        url += `?${params.toString()}`;
+      } else {
+        // If no parents selected, show root level items
+        url += '?parentId=null';
+      }
+
+      console.log('Fetching with URL:', url);
+      const response = await fetch(url);
+
       if (!response.ok) throw new Error('Failed to fetch items');
       const data = await response.json();
 
-      // Process items to set up timer states based on startedAt
-      const processedItems = data.map((item: any) => {
+      // Process items to set up timer states
+      const processedItems = data.map((item: ExtendedItem) => {
         if (item.startedAt) {
           const startTime = new Date(item.startedAt).getTime();
           const now = new Date().getTime();
@@ -353,8 +436,91 @@ function App() {
       });
 
       setItems(processedItems);
+
+      // Fetch all items for the dropdown
+      const allItemsResponse = await fetch(`${API_URL}/items`);
+      if (allItemsResponse.ok) {
+        const allItemsData = await allItemsResponse.json();
+        setAllItems(allItemsData);
+      }
     } catch (error) {
       console.error('Error fetching items:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Toggle a parent ID in the filter
+  const toggleParentFilter = (parentId: string | null) => {
+    if (parentId === null) {
+      // If "All Tasks" is clicked, clear all filters
+      setCurrentParentFilters([]);
+      fetchItems([]);
+      return;
+    }
+
+    const newParentFilters = [...currentParentFilters];
+
+    // Check if the ID is already in the filters
+    const index = newParentFilters.indexOf(parentId);
+
+    if (index > -1) {
+      // If already selected, remove it
+      newParentFilters.splice(index, 1);
+    } else {
+      // If not selected, add it
+      newParentFilters.push(parentId);
+    }
+
+    setCurrentParentFilters(newParentFilters);
+    fetchItems(newParentFilters);
+  };
+
+  // Handle setting a parent for an item (when moving)
+  const handleSetParent = async (itemId: string, parentId: string | null) => {
+    if (!itemId) return;
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/items/${itemId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          parentId,
+          title: items.find(item => item.id === itemId)?.title || ''
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update parent');
+
+      // Clear selected item
+      setSelectedItem(null);
+
+      // Refresh the items list
+      await fetchItems();
+
+      // Highlight the moved item
+      setItems(prevItems =>
+        prevItems.map(item =>
+          item.id === itemId ? { ...item, highlight: true } : item
+        )
+      );
+
+      // Clear highlight after delay
+      setTimeout(() => {
+        setItems(prevItems =>
+          prevItems.map(item =>
+            item.id === itemId ? { ...item, highlight: false } : item
+          )
+        );
+      }, 1500);
+    } catch (error) {
+      console.error('Error setting parent:', error);
+      alert('Failed to set parent');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -385,7 +551,8 @@ function App() {
         body: JSON.stringify({
           ...formData,
           previousId: currentContext.previousId,
-          nextId: currentContext.nextId
+          nextId: currentContext.nextId,
+          parentId: currentParentFilters.length > 0 ? currentParentFilters[0] : null
         }),
       });
 
@@ -909,50 +1076,6 @@ function App() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleEstimationChange = (item: ExtendedItem, newEstimation: string) => {
-    // Check if the input is in time format (MM:SS)
-    const timeFormatRegex = /^(\d{1,2}):(\d{2})$/;
-    const timeMatch = newEstimation.match(timeFormatRegex);
-
-    // Check if the input is a valid number
-    const numberRegex = /^\d*\.?\d*$/;
-    const isNumber = numberRegex.test(newEstimation);
-
-    let estimation: number;
-    let format: 'points' | 'time';
-
-    if (timeMatch) {
-      // Convert time format to minutes
-      const [mm, ss] = timeMatch.slice(1);
-      const minutes = parseInt(mm);
-      const seconds = parseInt(ss);
-
-      // Validate time values
-      if (minutes >= 0 && seconds >= 0 && seconds < 60) {
-        estimation = minutes + (seconds / 60);
-        format = 'time';
-      } else {
-        return; // Invalid time format
-      }
-    } else if (isNumber) {
-      // Handle plain number input (points)
-      estimation = parseFloat(newEstimation);
-      format = 'points';
-    } else {
-      return; // Invalid input
-    }
-
-    if (!isNaN(estimation)) {
-      setItems(prevItems =>
-        prevItems.map(i =>
-          i.id === item.id
-            ? { ...i, estimation, estimationFormat: format, remainingSeconds: Math.floor(estimation * 60) }
-            : i
-        )
-      );
-    }
-  };
-
   const formatEstimation = (estimation: number, format: 'points' | 'time') => {
     if (format === 'points') {
       return estimation.toString();
@@ -982,39 +1105,24 @@ function App() {
     return estimatedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const handleAddItem = async () => {
-    if (!formData.title) return;
+  const isAnyItemEditing = items.some(item => item.isEditing || item.isEditingEstimation || item.isNew);
 
-    const newItem: CreateItemDto = {
-      title: formData.title,
-      estimation: formData.estimation,
-      estimationFormat: formData.estimationFormat,
-      priority: formData.priority
-    };
-
+  // Fetch all items without parent filter
+  const fetchAllItems = async () => {
     try {
-      const response = await fetch(`${API_URL}/items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newItem),
-      });
-
-      if (!response.ok) throw new Error('Failed to create item');
-
-      const createdItem = await response.json();
-      const itemWithHighlight = { ...createdItem, highlight: true };
-      setItems(prevItems => [...prevItems, itemWithHighlight]);
-      setFormData({ title: '', estimation: 0, estimationFormat: 'points', priority: 0 });
-      setIsModalOpen(false);
-      setCurrentContext({ previousId: null, nextId: null });
+      const response = await fetch(`${API_URL}/items`);
+      if (!response.ok) throw new Error('Failed to fetch all items');
+      const data = await response.json();
+      setAllItems(data);
     } catch (error) {
-      console.error('Error creating item:', error);
+      console.error('Error fetching all items:', error);
     }
   };
 
-  const isAnyItemEditing = items.some(item => item.isEditing || item.isEditingEstimation || item.isNew);
+  // Load all items when component mounts
+  useEffect(() => {
+    fetchAllItems();
+  }, []);
 
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
@@ -1023,6 +1131,53 @@ function App() {
           <div className="loading-spinner"></div>
         </div>
       )}
+
+      <div className="parent-filter">
+        <div className="multiselect-container">
+          <label htmlFor="parent-multiselect">Filter by parents:</label>
+          <div className="selected-parents">
+            {currentParentFilters.length > 0 ? (
+              currentParentFilters.map(parentId => {
+                const parent = allItems.find(item => item.id === parentId);
+                return parent ? (
+                  <div key={parentId} className="selected-parent-tag">
+                    {parent.title}
+                    <button
+                      className="remove-parent"
+                      onClick={() => toggleParentFilter(parentId)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : null;
+              })
+            ) : (
+              <div className="no-parents-selected">No parents selected (showing root items)</div>
+            )}
+          </div>
+          <select
+            id="parent-multiselect"
+            className="parent-filter-select"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) {
+                toggleParentFilter(e.target.value);
+                e.target.value = ""; // Reset the select after selection
+              }
+            }}
+          >
+            <option value="">Add a parent filter...</option>
+            {allItems
+              .filter(item => !currentParentFilters.includes(item.id || ''))
+              .map(item => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+
       <div className="total-estimation">
         <div className="total-points">
           Total Points: {items
@@ -1065,7 +1220,7 @@ function App() {
           handleStartTimer={handleStartTimer}
           handleStopTimer={handleStopTimer}
           deleteItem={deleteItem}
-          sortedItems={sortedItems}
+          sortedItems={allItems}
           calculateEstimatedTime={calculateEstimatedTime}
           completedTimerId={completedTimerId}
           formatTime={formatTime}
@@ -1080,6 +1235,9 @@ function App() {
           setSelectedItem={setSelectedItem}
           handleAddBetween={handleAddBetween}
           isAnyItemEditing={isAnyItemEditing}
+          handleSetParent={handleSetParent}
+          parentSearchTerm={parentSearchTerm}
+          setParentSearchTerm={setParentSearchTerm}
         />
       ))}
 

@@ -6,6 +6,7 @@ export interface Item {
   priority: number;
   createdAt: any; // Using 'any' for now to avoid firebase dependency
   startedAt?: string | null; // Timestamp when timer was started
+  parentId?: string | null; // Reference to parent item
 }
 
 export interface CreateItemDto {
@@ -16,4 +17,5 @@ export interface CreateItemDto {
   previousId?: string | null;
   nextId?: string | null;
   startedAt?: string | null; // Add startedAt to DTO
+  parentId?: string | null; // Reference to parent item
 }
