@@ -5,6 +5,44 @@ import Modal from './components/Modal'
 import { IoAdd, IoTrashOutline, IoMove, IoPlay, IoStop } from 'react-icons/io5'
 import { Item, CreateItemDto } from '@workstream/shared'
 
+// Timer Display component with its own tick
+const TimerDisplay = ({ seconds, className }: { seconds: number, className: string }) => {
+  const [displaySeconds, setDisplaySeconds] = useState(seconds);
+
+  // Local timer effect that runs independently
+  useEffect(() => {
+    // Initialize with the current seconds
+    setDisplaySeconds(seconds);
+
+    // Only set up timer if we're displaying a positive number
+    if (seconds <= 0) return;
+
+    console.log(`Setting up timer display for ${seconds} seconds`);
+
+    // Create a local timer that ticks every second
+    const timer = setInterval(() => {
+      setDisplaySeconds(prev => {
+        // Decrement until we reach zero
+        const newValue = Math.max(0, prev - 1);
+        return newValue;
+      });
+    }, 1000);
+
+    // Clean up the timer
+    return () => clearInterval(timer);
+  }, [seconds]); // Reset when seconds prop changes
+
+  // Format the display seconds
+  const minutes = Math.floor(displaySeconds / 60);
+  const secs = displaySeconds % 60;
+
+  return (
+    <span className={className}>
+      {minutes}:{secs.toString().padStart(2, '0')}
+    </span>
+  );
+};
+
 // Force refreshing the Item type to include startedAt field
 // The Item interface should have: startedAt?: string | null
 interface ExtendedItem extends Item {
@@ -34,7 +72,6 @@ const ItemComponent = ({
   sortedItems,
   calculateEstimatedTime,
   completedTimerId,
-  formatTime,
   formatEstimation,
   editingTitle,
   setEditingTitle,
@@ -62,7 +99,6 @@ const ItemComponent = ({
   sortedItems: ExtendedItem[];
   calculateEstimatedTime: (items: ExtendedItem[], currentIndex: number) => string | null;
   completedTimerId: string | null;
-  formatTime: (seconds: number) => string;
   formatEstimation: (estimation: number, format: 'points' | 'time') => string;
   editingTitle: string;
   setEditingTitle: React.Dispatch<React.SetStateAction<string>>;
@@ -124,9 +160,15 @@ const ItemComponent = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <span
                     className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''} ${isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? 'non-editable' : ''}`}
-                    onClick={() => handleEstimationEdit(item)}
+                    onClick={() => !item.isRunning && handleEstimationEdit(item)}
                   >
-                    {item.isRunning ? formatTime(item.remainingSeconds || 0) : formatEstimation(item.estimation, item.estimationFormat || 'points')}
+                    {item.isRunning
+                      ? <TimerDisplay
+                          seconds={item.remainingSeconds || 0}
+                          className="timer-display"
+                        />
+                      : formatEstimation(item.estimation, item.estimationFormat || 'points')
+                    }
                   </span>
                   {item.estimationFormat === 'time' && (
                     !item.isRunning ? (
@@ -355,96 +397,98 @@ function App() {
 
   // Timer effect - only run when needed
   useEffect(() => {
-    // Only set up timer if we have running items
-    const hasRunningItems = items.some(item => item.isRunning);
-    console.log('Timer effect - checking for running items:', hasRunningItems ? 'yes' : 'no');
+    console.log("Setting up main timer effect");
 
-    if (!hasRunningItems) {
-      return; // Don't set up timer if no running items
-    }
-
-    console.log("Setting up timer effect for running items");
-
+    // Create a stable interval that updates every second
     const timer = setInterval(() => {
-      // Check again inside interval in case items changed
+      // Log current time for debugging
+      console.log('Timer tick:', new Date().toLocaleTimeString());
+
+      // Use the current items state to find running items
       setItems(prevItems => {
-        // Only process if we have running items
-        const runningItems = prevItems.filter(item => item.isRunning && item.startedAt);
-        if (runningItems.length === 0) {
-          return prevItems; // No need to update
+        // Check which items are running now
+        const runningItemsNow = prevItems.filter(item => item.isRunning && item.startedAt);
+        console.log(`Timer tick - processing ${runningItemsNow.length} running items`);
+
+        if (runningItemsNow.length === 0) {
+          return prevItems; // No running items to update
         }
 
-        console.log(`Processing ${runningItems.length} running items`);
-
-        // Check if any items need updates
         let needsUpdate = false;
         const updatedItems = prevItems.map(item => {
-          if (item.isRunning && item.startedAt) {
-            // Calculate remaining time
-            const startTime = new Date(item.startedAt).getTime();
-            const now = new Date().getTime();
-            const elapsedSeconds = Math.floor((now - startTime) / 1000);
-            const totalSeconds = Math.floor(item.estimation * 60);
-            const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
-
-            // Only update if time changed or completed
-            if (item.remainingSeconds !== remainingSeconds) {
-              needsUpdate = true;
-
-              if (remainingSeconds === 0) {
-                // Timer completed
-                if (audioRef.current) {
-                  audioRef.current.play().catch(error => console.log('Audio play failed:', error));
-                }
-                if (item.id) {
-                  setCompletedTimerId(item.id);
-                }
-
-                // Handle backend update separately
-                if (item.id) {
-                  fetch(`${API_URL}/items/${item.id}`, {
-                    method: 'PUT',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      title: item.title,
-                      estimation: 0,
-                      estimationFormat: 'time',
-                      priority: item.priority,
-                      startedAt: null
-                    }),
-                  }).then(response => {
-                    if (response.ok) return response.json();
-                    throw new Error('Failed to update estimation');
-                  }).then(() => {
-                    // We'll handle this in the next cycle
-                    console.log('Timer completed, backend updated');
-                  }).catch(error => {
-                    console.error('Error updating estimation:', error);
-                  });
-                }
-
-                return { ...item, isRunning: false, remainingSeconds: 0, startedAt: null };
-              }
-
-              return { ...item, remainingSeconds };
-            }
+          // Skip items that aren't running or don't have startedAt
+          if (!item.isRunning || !item.startedAt || !item.id) {
+            return item;
           }
 
-          return item;
+          // Calculate current remaining time
+          const startTime = new Date(item.startedAt).getTime();
+          const now = new Date().getTime();
+          const elapsedSeconds = Math.floor((now - startTime) / 1000);
+          const totalSeconds = Math.floor(item.estimation * 60);
+          const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+
+          console.log(`Item ${item.id}: remaining=${remainingSeconds}s, current=${item.remainingSeconds}s`);
+
+          // Always update the remainingSeconds on each tick for running items
+          needsUpdate = true;
+
+          // Handle timer completion
+          if (remainingSeconds === 0) {
+            console.log(`Timer completed for item ${item.id}`);
+
+            // Play sound
+            if (audioRef.current) {
+              audioRef.current.play().catch(error => console.log('Audio play failed:', error));
+            }
+
+            // Set completed item
+            if (item.id) {
+              setCompletedTimerId(item.id);
+            }
+
+            // Update backend
+            if (item.id) {
+              fetch(`${API_URL}/items/${item.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  title: item.title,
+                  estimation: 0,
+                  estimationFormat: 'time',
+                  priority: item.priority,
+                  startedAt: null
+                }),
+              })
+              .then(response => response.ok ? response.json() : Promise.reject('Update failed'))
+              .then(() => console.log('Timer completed, backend updated'))
+              .catch(error => console.error('Error updating estimation:', error));
+            }
+
+            // Return completed item
+            return {
+              ...item,
+              isRunning: false,
+              remainingSeconds: 0,
+              startedAt: null
+            };
+          }
+
+          // Return item with updated remaining time
+          return { ...item, remainingSeconds };
         });
 
-        // Only return new array if something changed
+        // Return updated items if any timers needed updating
         return needsUpdate ? updatedItems : prevItems;
       });
     }, 1000);
 
+    // Cleanup interval when component unmounts or dependencies change
     return () => {
       console.log("Cleaning up timer effect");
       clearInterval(timer);
     };
-  }, [items]); // Depend on items but be careful within the effect
+  }, []); // Empty dependency array to only set up timer once
 
   // Fetch all items and setup timer states
   const fetchItems = async (parentIds: string[] = currentParentFilters) => {
@@ -474,15 +518,21 @@ function App() {
 
       // Process items to set up timer states
       const processedItems = data.map((item: ExtendedItem) => {
+        // Check if this item has a timer running (startedAt is set)
         if (item.startedAt) {
+          console.log(`Item ${item.id} has startedAt=${item.startedAt}`);
+
           const startTime = new Date(item.startedAt).getTime();
           const now = new Date().getTime();
           const elapsedSeconds = Math.floor((now - startTime) / 1000);
           const totalSeconds = Math.floor(item.estimation * 60);
           const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
 
+          console.log(`Item ${item.id}: elapsed=${elapsedSeconds}s, total=${totalSeconds}s, remaining=${remainingSeconds}s`);
+
           // If timer should be running
           if (remainingSeconds > 0) {
+            console.log(`Item ${item.id} has a running timer with ${remainingSeconds}s remaining`);
             return {
               ...item,
               isRunning: true,
@@ -490,6 +540,7 @@ function App() {
             };
           } else {
             // Timer should have completed - will be reset on next render
+            console.log(`Item ${item.id} timer should have completed`);
             return {
               ...item,
               isRunning: false,
@@ -501,6 +552,9 @@ function App() {
       });
 
       console.log('Setting processed items:', processedItems.length, 'items');
+      const runningItems = processedItems.filter((item: ExtendedItem) => item.isRunning);
+      console.log(`Found ${runningItems.length} running timers:`, runningItems.map((i: ExtendedItem) => i.id));
+
       setItems(processedItems);
 
       // Fetch all items for the dropdown
@@ -1158,7 +1212,12 @@ function App() {
   };
 
   const handleStartTimer = (item: ExtendedItem) => {
+    console.log('Starting timer for item:', item.id);
     const now = new Date().toISOString();
+
+    // Calculate total seconds for the timer
+    const totalSeconds = Math.floor(item.estimation * 60);
+    console.log('Total seconds for timer:', totalSeconds);
 
     // Update backend with startedAt timestamp
     const updateStartTime = async () => {
@@ -1178,14 +1237,11 @@ function App() {
         });
 
         if (!response.ok) throw new Error('Failed to update start time');
-
-        // No need to update local state here, as the regular timer effect will handle it
+        console.log('Backend updated with startedAt:', now);
       } catch (error) {
         console.error('Error updating start time:', error);
       }
     };
-
-    updateStartTime();
 
     // Update local state immediately
     setItems(prevItems =>
@@ -1194,12 +1250,15 @@ function App() {
           ? {
               ...i,
               isRunning: true,
-              remainingSeconds: Math.floor(item.estimation * 60),
+              remainingSeconds: totalSeconds,
               startedAt: now
             }
           : i
       )
     );
+
+    // Update the backend
+    updateStartTime();
   };
 
   const handleStopTimer = (item: ExtendedItem) => {
@@ -1256,12 +1315,6 @@ function App() {
     );
 
     updateEstimation();
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const formatEstimation = (estimation: number, format: 'points' | 'time') => {
@@ -1414,7 +1467,6 @@ function App() {
           sortedItems={sortedItems}
           calculateEstimatedTime={calculateEstimatedTime}
           completedTimerId={completedTimerId}
-          formatTime={formatTime}
           formatEstimation={formatEstimation}
           editingTitle={editingTitle}
           setEditingTitle={setEditingTitle}
