@@ -299,7 +299,14 @@ const ItemComponent = ({
                     value={parentSearchTerm}
                     onChange={(e) => setParentSearchTerm(e.target.value)}
                     onClick={(e) => {
-                      // Only show options when input is clicked
+                      // Show options when input is clicked
+                      const options = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (options) {
+                        options.style.display = 'block';
+                      }
+                    }}
+                    onFocus={(e) => {
+                      // Show options when input is focused
                       const options = e.currentTarget.nextElementSibling as HTMLElement;
                       if (options) {
                         options.style.display = 'block';
@@ -324,7 +331,7 @@ const ItemComponent = ({
                     width: '100%',
                     maxHeight: '300px',
                     overflowY: 'auto',
-                    display: 'block' // Always show when parent selection is active
+                    display: 'none' // Initially hidden
                   }}>
                     <button
                       className="parent-option"
@@ -371,6 +378,11 @@ const ItemComponent = ({
                           }}
                         >
                           {potentialParent.title}
+                          {potentialParent.childrenCount !== undefined && potentialParent.childrenCount > 0 && (
+                            <span className="children-count" style={{ marginLeft: '8px' }}>
+                              {potentialParent.childrenCount}
+                            </span>
+                          )}
                         </button>
                       ))
                     ) : parentSearchTerm.trim() ? (
@@ -1422,6 +1434,11 @@ function App() {
                 return parent ? (
                   <div key={parentId} className="selected-parent-tag">
                     {parent.title}
+                    {parent.childrenCount !== undefined && parent.childrenCount > 0 && (
+                      <span className="children-count" style={{ marginLeft: '4px' }}>
+                        {parent.childrenCount}
+                      </span>
+                    )}
                     <button
                       className="remove-parent"
                       onClick={() => toggleParentFilter(parentId)}
@@ -1452,6 +1469,7 @@ function App() {
               .map(item => (
                 <option key={item.id} value={item.id}>
                   {item.title}
+                  {item.childrenCount !== undefined && item.childrenCount > 0 && ` (${item.childrenCount})`}
                 </option>
               ))}
           </select>
