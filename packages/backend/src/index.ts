@@ -110,6 +110,21 @@ router.get('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
   }
 });
 
+// Helper function to update children count
+async function updateChildrenCount(parentId: string | null) {
+  if (!parentId) return;
+
+  const childrenSnapshot = await db.collection('items')
+    .where('parentId', '==', parentId)
+    .get();
+
+  const childrenCount = childrenSnapshot.size;
+
+  await db.collection('items').doc(parentId).update({
+    childrenCount
+  });
+}
+
 // Add a new item
 router.post('/items', async (req, res) => {
   const startTime = performance.now();
@@ -127,6 +142,7 @@ router.post('/items', async (req, res) => {
       estimationFormat: estimationFormat || 'points',
       priority: priority || 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      childrenCount: 0, // Initialize children count
       ...(startedAt !== undefined && { startedAt }),
       ...(parentId !== undefined && { parentId })
     };
@@ -189,6 +205,11 @@ router.post('/items', async (req, res) => {
       });
     }
 
+    // After creating the item, update parent's children count if it has a parent
+    if (parentId) {
+      await updateChildrenCount(parentId);
+    }
+
     console.info(`Database insert took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     const item = await newItem.get();
@@ -223,6 +244,9 @@ router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
       return;
     }
 
+    // Get the old parent ID before update
+    const oldParentId = item.data()?.parentId;
+
     const updateStartTime = performance.now();
     await itemRef.update({
       title,
@@ -232,6 +256,16 @@ router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
       ...(startedAt !== undefined && { startedAt }),
       ...(parentId !== undefined && { parentId })
     });
+
+    // Update children count for both old and new parent
+    if (oldParentId !== parentId) {
+      if (oldParentId) {
+        await updateChildrenCount(oldParentId);
+      }
+      if (parentId) {
+        await updateChildrenCount(parentId);
+      }
+    }
 
     console.info(`Database update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
 
@@ -259,7 +293,16 @@ router.delete('/items/:id', async (req: Request<{ id: string }>, res: Response):
       return;
     }
 
+    // Get parent ID before deleting
+    const parentId = item.data()?.parentId;
+
     await itemRef.delete();
+
+    // Update parent's children count
+    if (parentId) {
+      await updateChildrenCount(parentId);
+    }
+
     console.info(`Database delete took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     res.status(204).send();
@@ -283,6 +326,9 @@ router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response
       res.status(404).json({ error: 'Item not found' });
       return;
     }
+
+    // Get old parent ID before update
+    const oldParentId = item.data()?.parentId;
 
     let newPriority;
 
@@ -334,6 +380,17 @@ router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response
     }
 
     await itemRef.update(updateData);
+
+    // Update children count for both old and new parent
+    if (oldParentId !== parentId) {
+      if (oldParentId) {
+        await updateChildrenCount(oldParentId);
+      }
+      if (parentId) {
+        await updateChildrenCount(parentId);
+      }
+    }
+
     console.info(`Database move took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     const updatedItem = await itemRef.get();

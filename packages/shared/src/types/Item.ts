@@ -7,6 +7,7 @@ export interface Item {
   createdAt: any; // Using 'any' for now to avoid firebase dependency
   startedAt?: string | null; // Timestamp when timer was started
   parentId?: string | null; // Reference to parent item
+  childrenCount?: number; // Number of child items
 }
 
 export interface CreateItemDto {

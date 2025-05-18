@@ -55,6 +55,7 @@ interface ExtendedItem extends Item {
   nextId?: string | null;
   isNew?: boolean;
   startedAt?: string | null; // This should be defined in the shared Item interface
+  childrenCount?: number;
 }
 
 // Item component for rendering each item
@@ -181,6 +182,11 @@ const ItemComponent = ({
                       </button>
                     )
                   )}
+                  {item.childrenCount !== undefined && item.childrenCount > 0 && (
+                    <span className="children-count" title={`${item.childrenCount} child items`}>
+                      {item.childrenCount}
+                    </span>
+                  )}
                 </div>
                 {item.estimationFormat === 'time' && (
                   <div style={{ fontSize: '0.7em', color: '#666', marginTop: '2px', textAlign: 'left' }}>
@@ -292,6 +298,20 @@ const ItemComponent = ({
                     placeholder="Search parents..."
                     value={parentSearchTerm}
                     onChange={(e) => setParentSearchTerm(e.target.value)}
+                    onClick={(e) => {
+                      // Only show options when input is clicked
+                      const options = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (options) {
+                        options.style.display = 'block';
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Hide options when clicking outside
+                      const options = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (options) {
+                        options.style.display = 'none';
+                      }
+                    }}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -300,10 +320,22 @@ const ItemComponent = ({
                       borderRadius: '4px'
                     }}
                   />
-                  <div className="parent-options" style={{ width: '100%', maxHeight: '300px', overflowY: 'auto' }}>
+                  <div className="parent-options" style={{
+                    width: '100%',
+                    maxHeight: '300px',
+                    overflowY: 'auto',
+                    display: 'block' // Always show when parent selection is active
+                  }}>
                     <button
                       className="parent-option"
-                      onClick={() => handleSetParent(item.id || '', null)}
+                      onClick={() => {
+                        handleSetParent(item.id || '', null);
+                        // Hide options after selection
+                        const options = document.querySelector('.parent-options') as HTMLElement;
+                        if (options) {
+                          options.style.display = 'none';
+                        }
+                      }}
                       style={{
                         width: '100%',
                         textAlign: 'left',
@@ -321,7 +353,14 @@ const ItemComponent = ({
                         <button
                           key={potentialParent.id}
                           className="parent-option"
-                          onClick={() => handleSetParent(item.id || '', potentialParent.id || null)}
+                          onClick={() => {
+                            handleSetParent(item.id || '', potentialParent.id || null);
+                            // Hide options after selection
+                            const options = document.querySelector('.parent-options') as HTMLElement;
+                            if (options) {
+                              options.style.display = 'none';
+                            }
+                          }}
                           style={{
                             width: '100%',
                             textAlign: 'left',
