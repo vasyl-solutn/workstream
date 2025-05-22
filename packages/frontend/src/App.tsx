@@ -64,9 +64,6 @@ const ItemComponent = ({
   index,
   selectedItem,
   handleTitleEdit,
-  handleEstimationEdit,
-  handleEstimationSave,
-  handleEstimationCancel,
   handleStartTimer,
   handleStopTimer,
   deleteItem,
@@ -90,10 +87,7 @@ const ItemComponent = ({
   item: ExtendedItem;
   index: number;
   selectedItem: string | null;
-  handleTitleEdit: (item: ExtendedItem) => void;
-  handleEstimationEdit: (item: ExtendedItem) => void;
-  handleEstimationSave: (item: ExtendedItem) => void;
-  handleEstimationCancel: (item: ExtendedItem) => void;
+  handleTitleEdit: (item: ExtendedItem, focusEstimation: boolean) => void;
   handleStartTimer: (item: ExtendedItem) => void;
   handleStopTimer: (item: ExtendedItem) => void;
   deleteItem: (id: string | undefined) => Promise<void>;
@@ -161,7 +155,7 @@ const ItemComponent = ({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <span
                     className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''} ${isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? 'non-editable' : ''}`}
-                    onClick={() => !item.isRunning && handleEstimationEdit(item)}
+                    onClick={() => !item.isRunning && handleTitleEdit(item, true)}
                   >
                     {item.isRunning
                       ? <TimerDisplay
@@ -195,29 +189,6 @@ const ItemComponent = ({
                 )}
               </div>
             )}
-            {item.isEditingEstimation && (
-              <div className="estimation-edit">
-                <input
-                  type="text"
-                  value={editingEstimationText}
-                  onChange={(e) => setEditingEstimationText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleEstimationSave(item);
-                    } else if (e.key === 'Escape') {
-                      handleEstimationCancel(item);
-                    }
-                  }}
-                  placeholder="Estimation (number or MM:SS)"
-                  className="estimation-input"
-                  autoFocus
-                />
-                <div className="edit-actions">
-                  <button onClick={() => handleEstimationSave(item)}>Save</button>
-                  <button onClick={() => handleEstimationCancel(item)}>Cancel</button>
-                </div>
-              </div>
-            )}
             {item.isEditing ? (
               <div className="title-edit">
                 <div className="estimation-section">
@@ -225,17 +196,17 @@ const ItemComponent = ({
                     type="text"
                     value={editingEstimationText}
                     onChange={(e) => setEditingEstimationText(e.target.value)}
-                    placeholder="Estimation (number or MM:SS)"
+                    placeholder="N or MM:SS"
                     className="estimation-input"
+                    autoFocus={false}
                   />
                 </div>
-                <input
-                  type="text"
+                <textarea
                   value={editingTitle}
                   onChange={(e) => setEditingTitle(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      console.log("Enter pressed, saving item:", item);
+                    if (e.key === 'Enter' && e.metaKey) {
+                      console.log("Cmd+Enter pressed, saving item:", item);
                       handleSaveNewItem(item);
                     } else if (e.key === 'Escape') {
                       console.log("Escape pressed, canceling item");
@@ -243,6 +214,7 @@ const ItemComponent = ({
                     }
                   }}
                   placeholder="Enter title"
+                  className="title-input"
                   autoFocus
                 />
                 <div className="edit-actions">
@@ -263,7 +235,7 @@ const ItemComponent = ({
             ) : (
               <>
                 <h3
-                  onClick={() => handleTitleEdit(item)}
+                  onClick={() => handleTitleEdit(item, false)}
                   className={isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? "non-editable" : ""}
                 >
                   {item.title}
@@ -1130,7 +1102,7 @@ function App() {
     setSelectedItem(null);
   };
 
-  const handleTitleEdit = (item: ExtendedItem) => {
+  const handleTitleEdit = (item: ExtendedItem, focusEstimation: boolean = false) => {
     // Check if any other item is being edited
     const isAnyOtherItemEditing = items.some(i =>
       (i.id !== item.id) && (i.isEditing || i.isEditingEstimation || i.isNew)
@@ -1148,119 +1120,14 @@ function App() {
     );
     setEditingTitle(item.title);
     setEditingEstimationText(formatEstimation(item.estimation, item.estimationFormat || 'points'));
-  };
 
-  const handleEstimationEdit = (item: ExtendedItem) => {
-    // Check if any other item is being edited
-    const isAnyOtherItemEditing = items.some(i =>
-      (i.id !== item.id) && (i.isEditing || i.isEditingEstimation || i.isNew)
-    );
-
-    // Don't allow editing if another item is already being edited
-    if (isAnyOtherItemEditing) {
-      return;
-    }
-
-    setItems(prevItems =>
-      prevItems.map(i =>
-        i.id === item.id ? { ...i, isEditingEstimation: true } : i
-      )
-    );
-    setEditingEstimationText(formatEstimation(item.estimation, item.estimationFormat || 'points'));
-  };
-
-  const handleEstimationSave = async (item: ExtendedItem) => {
-    const value = editingEstimationText;
-    let updated = false;
-
-    // If it's a time format, validate and convert to minutes
-    if (value.includes(':')) {
-      const [minutes, seconds] = value.split(':');
-      const mins = parseInt(minutes) || 0;
-      const secs = parseInt(seconds || '0');
-
-      if (secs >= 0 && secs < 60) {
-        const newEstimation = mins + (secs / 60);
-        setIsLoading(true);
-        try {
-          const response = await fetch(`${API_URL}/items/${item.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              title: item.title,
-              estimation: newEstimation,
-              estimationFormat: 'time',
-              priority: item.priority
-            }),
-          });
-
-          if (!response.ok) throw new Error('Failed to update estimation');
-
-          setItems(prevItems =>
-            prevItems.map(i =>
-              i.id === item.id ? { ...i, estimation: newEstimation, estimationFormat: 'time', isEditingEstimation: false } : i
-            )
-          );
-          updated = true;
-        } catch (error) {
-          console.error('Error updating estimation:', error);
-          alert('Failed to update estimation');
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        alert('Seconds must be between 00 and 59');
+    // Set focus after a small delay to ensure the form is rendered
+    setTimeout(() => {
+      const input = document.querySelector(focusEstimation ? '.estimation-input' : '.title-input') as HTMLElement;
+      if (input) {
+        input.focus();
       }
-    } else {
-      // Handle plain number input
-      const num = parseFloat(value);
-      if (!isNaN(num)) {
-        setIsLoading(true);
-        try {
-          const response = await fetch(`${API_URL}/items/${item.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              title: item.title,
-              estimation: num,
-              estimationFormat: 'points',
-              priority: item.priority
-            }),
-          });
-
-          if (!response.ok) throw new Error('Failed to update estimation');
-
-          setItems(prevItems =>
-            prevItems.map(i =>
-              i.id === item.id ? { ...i, estimation: num, estimationFormat: 'points', isEditingEstimation: false } : i
-            )
-          );
-          updated = true;
-        } catch (error) {
-          console.error('Error updating estimation:', error);
-          alert('Failed to update estimation');
-        } finally {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    // If update failed, still need to cancel editing mode
-    if (!updated) {
-      handleEstimationCancel(item);
-    }
-  };
-
-  const handleEstimationCancel = (item: ExtendedItem) => {
-    setItems(prevItems =>
-      prevItems.map(i =>
-        i.id === item.id ? { ...i, isEditingEstimation: false } : i
-      )
-    );
+    }, 0);
   };
 
   const handleStartTimer = (item: ExtendedItem) => {
@@ -1523,9 +1390,6 @@ function App() {
           index={index}
           selectedItem={selectedItem}
           handleTitleEdit={handleTitleEdit}
-          handleEstimationEdit={handleEstimationEdit}
-          handleEstimationSave={handleEstimationSave}
-          handleEstimationCancel={handleEstimationCancel}
           handleStartTimer={handleStartTimer}
           handleStopTimer={handleStopTimer}
           deleteItem={deleteItem}

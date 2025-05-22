@@ -155,6 +155,13 @@ main h2 {
   font-weight: 500;
   color: #1e293b;
   line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  width: 100%;
 }
 
 .item-header .estimation {
@@ -714,10 +721,16 @@ h1, h2 {
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
+  width: 100%;
 }
 
-.title-edit input {
-  width: 100%;
+.title-edit .estimation-section {
+  width: auto;
+  margin-bottom: 8px;
+}
+
+.title-edit .estimation-input {
+  width: 120px;
   padding: 8px 12px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
@@ -726,7 +739,24 @@ h1, h2 {
   background-color: white;
 }
 
-.title-edit input:focus {
+.title-edit .title-input {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1e293b;
+  background-color: white;
+  resize: vertical;
+  margin-bottom: 8px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.title-edit .estimation-input:focus,
+.title-edit .title-input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
@@ -751,13 +781,6 @@ h1, h2 {
 .edit-actions button:last-child {
   background-color: #f44336;
   color: white;
-}
-
-.item-header h3 {
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
 }
 
 .item-header h3:hover {
