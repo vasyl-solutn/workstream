@@ -521,7 +521,8 @@ function App() {
               ...item,
               isRunning: false,
               remainingSeconds: 0,
-              startedAt: null
+              startedAt: null,
+              estimation: 0
             };
           }
 
@@ -1340,14 +1341,15 @@ function App() {
 
         if (!response.ok) throw new Error('Failed to update estimation');
 
-        await response.json();
+        // Update local state with the new estimation value
         setItems(prevItems =>
           prevItems.map(i =>
             i.id === item.id ? {
               ...i,
+              isRunning: false,
+              startedAt: null,
               estimation: newEstimation,
-              estimationFormat: 'time',
-              startedAt: null
+              remainingSeconds: remainingSeconds
             } : i
           )
         );
@@ -1360,7 +1362,13 @@ function App() {
     setItems(prevItems =>
       prevItems.map(i =>
         i.id === item.id
-          ? { ...i, isRunning: false, startedAt: null }
+          ? {
+              ...i,
+              isRunning: false,
+              startedAt: null,
+              estimation: newEstimation,
+              remainingSeconds: remainingSeconds
+            }
           : i
       )
     );
