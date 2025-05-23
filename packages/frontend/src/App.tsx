@@ -318,7 +318,11 @@ const ItemComponent = ({
                     backgroundColor: 'white',
                     border: '1px solid #ccc',
                     borderRadius: '4px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '4px'
                   }}>
                     <button
                       className="parent-option"
