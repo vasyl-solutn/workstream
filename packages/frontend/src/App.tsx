@@ -82,7 +82,8 @@ const ItemComponent = ({
   handleAddBetween,
   isAnyItemEditing,
   handleSetParent,
-  availableParentOptions
+  availableParentOptions,
+  allItems
 }: {
   item: ExtendedItem;
   index: number;
@@ -107,6 +108,7 @@ const ItemComponent = ({
   isAnyItemEditing: boolean;
   handleSetParent: (itemId: string, parentId: string | null) => Promise<void>;
   availableParentOptions: (itemId: string) => ExtendedItem[];
+  allItems: ExtendedItem[];
 }) => {
   // State for parent search
   const [parentSearchTerm, setParentSearchTerm] = React.useState('');
@@ -239,6 +241,11 @@ const ItemComponent = ({
                   className={isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? "non-editable" : ""}
                 >
                   {item.title}
+                  {item.parentId && (
+                    <span className="parent-title">
+                      {allItems.find(p => p.id === item.parentId)?.title}
+                    </span>
+                  )}
                 </h3>
               </>
             )}
@@ -285,11 +292,13 @@ const ItemComponent = ({
                       }
                     }}
                     onBlur={(e) => {
-                      // Hide options when clicking outside
-                      const options = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (options) {
-                        options.style.display = 'none';
-                      }
+                      // Don't hide options immediately to allow clicking
+                      setTimeout(() => {
+                        const options = e.currentTarget.nextElementSibling as HTMLElement;
+                        if (options) {
+                          options.style.display = 'none';
+                        }
+                      }, 200);
                     }}
                     style={{
                       width: '100%',
@@ -303,14 +312,26 @@ const ItemComponent = ({
                     width: '100%',
                     maxHeight: '300px',
                     overflowY: 'auto',
-                    display: 'none' // Initially hidden
+                    display: 'none', // Initially hidden
+                    position: 'absolute',
+                    zIndex: 1000,
+                    backgroundColor: 'white',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                   }}>
                     <button
                       className="parent-option"
-                      onClick={() => {
-                        handleSetParent(item.id || '', null);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (item.id) {
+                          handleSetParent(item.id, null);
+                        } else {
+                          console.error('No item ID found');
+                        }
                         // Hide options after selection
-                        const options = document.querySelector('.parent-options') as HTMLElement;
+                        const options = e.currentTarget.parentElement as HTMLElement;
                         if (options) {
                           options.style.display = 'none';
                         }
@@ -321,7 +342,8 @@ const ItemComponent = ({
                         padding: '8px 12px',
                         backgroundColor: !item.parentId ? '#f0f0f0' : 'transparent',
                         fontWeight: !item.parentId ? 'bold' : 'normal',
-                        borderBottom: '1px solid #eee'
+                        borderBottom: '1px solid #eee',
+                        cursor: 'pointer'
                       }}
                     >
                       No Parent (Root Level)
@@ -332,10 +354,16 @@ const ItemComponent = ({
                         <button
                           key={potentialParent.id}
                           className="parent-option"
-                          onClick={() => {
-                            handleSetParent(item.id || '', potentialParent.id || null);
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (item.id && potentialParent.id) {
+                              handleSetParent(item.id, potentialParent.id);
+                            } else {
+                              console.error('Missing item ID or parent ID');
+                            }
                             // Hide options after selection
-                            const options = document.querySelector('.parent-options') as HTMLElement;
+                            const options = e.currentTarget.parentElement as HTMLElement;
                             if (options) {
                               options.style.display = 'none';
                             }
@@ -346,7 +374,8 @@ const ItemComponent = ({
                             padding: '8px 12px',
                             backgroundColor: item.parentId === potentialParent.id ? '#f0f0f0' : 'transparent',
                             fontWeight: item.parentId === potentialParent.id ? 'bold' : 'normal',
-                            borderBottom: '1px solid #eee'
+                            borderBottom: '1px solid #eee',
+                            cursor: 'pointer'
                           }}
                         >
                           {potentialParent.title}
@@ -626,12 +655,16 @@ function App() {
 
     setIsLoading(true);
     try {
-      // Always include parentId, even when null
-      const requestBody: {
-        title: string;
-        parentId: string | null;
-      } = {
-        title: items.find(item => item.id === itemId)?.title || '',
+      // Get the current item to preserve its other properties
+      const currentItem = items.find(item => item.id === itemId);
+      if (!currentItem) return;
+
+      // Prepare the request body with all necessary fields
+      const requestBody = {
+        title: currentItem.title,
+        estimation: currentItem.estimation,
+        estimationFormat: currentItem.estimationFormat,
+        priority: currentItem.priority,
         parentId: parentId
       };
 
@@ -643,7 +676,10 @@ function App() {
         body: JSON.stringify(requestBody),
       });
 
-      if (!response.ok) throw new Error('Failed to update parent');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to update parent: ${errorText}`);
+      }
 
       // Clear selected item
       setSelectedItem(null);
@@ -668,7 +704,7 @@ function App() {
       }, 1500);
     } catch (error) {
       console.error('Error setting parent:', error);
-      alert('Failed to set parent');
+      alert('Failed to set parent: ' + (error as Error).message);
     } finally {
       setIsLoading(false);
     }
@@ -1409,6 +1445,7 @@ function App() {
           isAnyItemEditing={isAnyItemEditing}
           handleSetParent={handleSetParent}
           availableParentOptions={availableParentOptions}
+          allItems={allItems}
         />
       ))}
 
