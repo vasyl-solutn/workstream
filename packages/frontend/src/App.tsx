@@ -457,12 +457,9 @@ function App() {
 
     // Create a stable interval that updates every second
     const timer = setInterval(() => {
-      // Log current time for debugging
-      console.log('Timer tick:', new Date().toLocaleTimeString());
-
       // Use the current items state to find running items
       setItems(prevItems => {
-        // Check which items are running now
+        // Check which items are running
         const runningItemsNow = prevItems.filter(item => item.isRunning && item.startedAt);
         console.log(`Timer tick - processing ${runningItemsNow.length} running items`);
 
@@ -477,14 +474,12 @@ function App() {
             return item;
           }
 
-          // Calculate current remaining time
+          // Calculate current remaining time based on startedAt using the same timestamp
           const startTime = new Date(item.startedAt).getTime();
           const now = new Date().getTime();
           const elapsedSeconds = Math.floor((now - startTime) / 1000);
           const totalSeconds = Math.floor(item.estimation * 60);
           const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
-
-          console.log(`Item ${item.id}: remaining=${remainingSeconds}s, current=${item.remainingSeconds}s`);
 
           // Always update the remainingSeconds on each tick for running items
           needsUpdate = true;
@@ -1171,12 +1166,9 @@ function App() {
   };
 
   const handleStartTimer = (item: ExtendedItem) => {
-    console.log('Starting timer for item:', item.id);
-    const now = new Date().toISOString();
-
     // Calculate total seconds for the timer
     const totalSeconds = Math.floor(item.estimation * 60);
-    console.log('Total seconds for timer:', totalSeconds);
+    const now = new Date().toISOString();
 
     // Update backend with startedAt timestamp
     const updateStartTime = async () => {
@@ -1196,7 +1188,6 @@ function App() {
         });
 
         if (!response.ok) throw new Error('Failed to update start time');
-        console.log('Backend updated with startedAt:', now);
       } catch (error) {
         console.error('Error updating start time:', error);
       }
@@ -1303,7 +1294,14 @@ function App() {
     // Sum up all previous items' estimations plus current item
     for (let i = 0; i <= currentIndex; i++) {
       if (items[i] && items[i].estimationFormat === 'time') {
-        totalMinutes += items[i].estimation;
+        if (items[i].isRunning) {
+          const startTime = new Date(items[i].startedAt || '').getTime();
+          const elapsedSeconds = Math.floor((now.getTime() - startTime) / 1000);
+          const remainingSeconds = Math.max(0, items[i].estimation * 60 - elapsedSeconds);
+          totalMinutes += remainingSeconds / 60;
+        } else {
+          totalMinutes += items[i].estimation;
+        }
       }
     }
 
@@ -1381,12 +1379,21 @@ function App() {
             <option value="">Add a parent filter...</option>
             {allItems
               .filter(item => !currentParentFilters.includes(item.id || ''))
-              .map(item => (
-                <option key={item.id} value={item.id}>
-                  {item.title}
-                  {item.childrenCount !== undefined && item.childrenCount > 0 && ` (${item.childrenCount})`}
-                </option>
-              ))}
+              .map(item => {
+                // Build parent hierarchy
+                let parentChain = item.title;
+                let currentParent = allItems.find(p => p.id === item.parentId);
+                while (currentParent) {
+                  parentChain = `${currentParent.title} → ${parentChain}`;
+                  currentParent = allItems.find(p => p.id === currentParent?.parentId);
+                }
+                return (
+                  <option key={item.id} value={item.id}>
+                    {parentChain}
+                    {item.childrenCount !== undefined && item.childrenCount > 0 && ` (${item.childrenCount})`}
+                  </option>
+                );
+              })}
           </select>
         </div>
       </div>
