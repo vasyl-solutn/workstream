@@ -1513,6 +1513,9 @@ function App() {
       </div>
 
       <div className="total-estimation">
+        <div className="total-items">
+          Total Items: {items.length}
+        </div>
         <div className="total-points">
           Total Points: {items
             .filter(item => item.estimationFormat === 'points')
