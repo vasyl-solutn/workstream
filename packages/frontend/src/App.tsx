@@ -435,6 +435,8 @@ function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [editingEstimationText, setEditingEstimationText] = useState('');
   const [currentParentFilters, setCurrentParentFilters] = useState<string[]>([]);
+  const [parentFilterText, setParentFilterText] = useState('');
+  const [parentDropdownOpen, setParentDropdownOpen] = useState(false);
 
   // Initialize audio
   useEffect(() => {
@@ -1365,36 +1367,103 @@ function App() {
               <div className="no-parents-selected">No parents selected (showing root items)</div>
             )}
           </div>
-          <select
-            id="parent-multiselect"
-            className="parent-filter-select"
-            value=""
-            onChange={(e) => {
-              if (e.target.value) {
-                toggleParentFilter(e.target.value);
-                e.target.value = ""; // Reset the select after selection
-              }
-            }}
-          >
-            <option value="">Add a parent filter...</option>
-            {allItems
-              .filter(item => !currentParentFilters.includes(item.id || ''))
-              .map(item => {
-                // Build parent hierarchy
-                let parentChain = item.title;
-                let currentParent = allItems.find(p => p.id === item.parentId);
-                while (currentParent) {
-                  parentChain = `${currentParent.title} → ${parentChain}`;
-                  currentParent = allItems.find(p => p.id === currentParent?.parentId);
+          {/* Custom dropdown for parent filter */}
+          <div style={{ position: 'relative', width: '100%' }}>
+            <input
+              type="text"
+              id="parent-multiselect"
+              className="parent-filter-select"
+              placeholder="Type to filter parents..."
+              value={parentFilterText}
+              onChange={e => {
+                setParentFilterText(e.target.value);
+                setParentDropdownOpen(true);
+              }}
+              onFocus={() => setParentDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setParentDropdownOpen(false), 200)}
+              autoComplete="off"
+              style={{ width: '100%', marginBottom: 0, padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0' }}
+            />
+            {parentDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: 'white',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                zIndex: 1000,
+                maxHeight: 300,
+                overflowY: 'auto',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.08)'
+              }}>
+                {allItems
+                  .filter(item => !currentParentFilters.includes(item.id || ''))
+                  .filter(item => {
+                    // Filter by parentFilterText (case-insensitive, matches anywhere in chain)
+                    let parentChain = item.title;
+                    let currentParent = allItems.find(p => p.id === item.parentId);
+                    let depth = 0;
+                    while (currentParent && depth < 2) {
+                      parentChain = `${currentParent.title} → ${parentChain}`;
+                      currentParent = allItems.find(p => p.id === currentParent?.parentId);
+                      depth++;
+                    }
+                    return parentChain.toLowerCase().includes(parentFilterText.toLowerCase());
+                  })
+                  .sort((a, b) => {
+                    // Sort so that items where the match is in the leaf (item.title) come first
+                    const filter = parentFilterText.toLowerCase();
+                    const aOwn = a.title.toLowerCase().includes(filter);
+                    const bOwn = b.title.toLowerCase().includes(filter);
+                    if (aOwn && !bOwn) return -1;
+                    if (!aOwn && bOwn) return 1;
+                    return 0;
+                  })
+                  .map(item => {
+                    // Build parent hierarchy, but limit to 3 levels
+                    let parentChain = item.title;
+                    let currentParent = allItems.find(p => p.id === item.parentId);
+                    let depth = 0;
+                    while (currentParent && depth < 2) {
+                      parentChain = `${currentParent.title} → ${parentChain}`;
+                      currentParent = allItems.find(p => p.id === currentParent?.parentId);
+                      depth++;
+                    }
+                    return (
+                      <div
+                        key={item.id}
+                        style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: 'white' }}
+                        onMouseDown={() => {
+                          toggleParentFilter(item.id!);
+                          setParentFilterText('');
+                          setParentDropdownOpen(false);
+                        }}
+                      >
+                        {parentChain}
+                        {item.childrenCount !== undefined && item.childrenCount > 0 && ` (${item.childrenCount})`}
+                      </div>
+                    );
+                  })
                 }
-                return (
-                  <option key={item.id} value={item.id}>
-                    {parentChain}
-                    {item.childrenCount !== undefined && item.childrenCount > 0 && ` (${item.childrenCount})`}
-                  </option>
-                );
-              })}
-          </select>
+                {allItems.filter(item => !currentParentFilters.includes(item.id || ''))
+                  .filter(item => {
+                    let parentChain = item.title;
+                    let currentParent = allItems.find(p => p.id === item.parentId);
+                    let depth = 0;
+                    while (currentParent && depth < 2) {
+                      parentChain = `${currentParent.title} → ${parentChain}`;
+                      currentParent = allItems.find(p => p.id === currentParent?.parentId);
+                      depth++;
+                    }
+                    return parentChain.toLowerCase().includes(parentFilterText.toLowerCase());
+                  }).length === 0 && (
+                  <div style={{ padding: '8px 12px', color: '#888' }}>No matching parents</div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
