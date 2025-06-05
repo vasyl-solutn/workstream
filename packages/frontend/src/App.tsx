@@ -1525,7 +1525,18 @@ function App() {
           Total Time: {formatEstimation(
             items
               .filter(item => item.estimationFormat === 'time')
-              .reduce((sum, item) => sum + item.estimation, 0),
+              .reduce((sum, item) => {
+                if (item.isRunning && item.startedAt) {
+                  // For running items, calculate remaining time based on startedAt
+                  const startTime = new Date(item.startedAt).getTime();
+                  const now = new Date().getTime();
+                  const elapsedSeconds = Math.floor((now - startTime) / 1000);
+                  const totalSeconds = Math.floor(item.estimation * 60);
+                  const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
+                  return sum + (remainingSeconds / 60);
+                }
+                return sum + item.estimation;
+              }, 0),
             'time'
           )}
         </div>
