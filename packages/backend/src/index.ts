@@ -404,6 +404,29 @@ router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response
   }
 });
 
+// Update lastFilteredAt for an item
+router.patch('/items/:id/last-filtered', async (req: Request<{ id: string }>, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { lastFilteredAt } = req.body;
+    if (!lastFilteredAt) {
+      res.status(400).json({ error: 'lastFilteredAt is required' });
+      return;
+    }
+    const itemRef = db.collection('items').doc(id);
+    const item = await itemRef.get();
+    if (!item.exists) {
+      res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+    await itemRef.update({ lastFilteredAt });
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error updating lastFilteredAt:', error);
+    res.status(500).json({ error: 'Failed to update lastFilteredAt' });
+  }
+});
+
 // Use the router
 app.use('/', router);
 

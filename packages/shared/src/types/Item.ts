@@ -8,6 +8,7 @@ export interface Item {
   startedAt?: string | null; // Timestamp when timer was started
   parentId?: string | null; // Reference to parent item
   childrenCount?: number; // Number of child items
+  lastFilteredAt?: string | null; // Last time this item was used as a filter
 }
 
 export interface CreateItemDto {

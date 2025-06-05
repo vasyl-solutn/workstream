@@ -5,3 +5,5 @@ import * as admin from 'firebase-admin';
 export interface Item extends Omit<SharedItem, 'createdAt'> {
   createdAt: admin.firestore.Timestamp | null;
 }
+
+// The Item interface now supports lastFilteredAt via the shared type.

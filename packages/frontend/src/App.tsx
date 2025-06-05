@@ -56,6 +56,7 @@ interface ExtendedItem extends Item {
   isNew?: boolean;
   startedAt?: string | null; // This should be defined in the shared Item interface
   childrenCount?: number;
+  lastFilteredAt?: string | null;
 }
 
 // Item component for rendering each item
@@ -624,6 +625,19 @@ function App() {
     }
   };
 
+  // When a parent is used as a filter, update its lastFilteredAt in the DB
+  const updateLastFilteredAt = async (itemId: string) => {
+    try {
+      await fetch(`${API_URL}/items/${itemId}/last-filtered`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lastFilteredAt: new Date().toISOString() })
+      });
+    } catch {
+      // Ignore errors for now
+    }
+  };
+
   // Toggle a parent ID in the filter
   const toggleParentFilter = (parentId: string | null) => {
     if (parentId === null) {
@@ -644,6 +658,7 @@ function App() {
     } else {
       // If not selected, add it
       newParentFilters.push(parentId);
+      updateLastFilteredAt(parentId); // <-- update last used
     }
 
     setCurrentParentFilters(newParentFilters);
@@ -1419,7 +1434,10 @@ function App() {
                     const bOwn = b.title.toLowerCase().includes(filter);
                     if (aOwn && !bOwn) return -1;
                     if (!aOwn && bOwn) return 1;
-                    return 0;
+                    // If both are the same, sort by lastFilteredAt desc (most recent first)
+                    const aTime = a.lastFilteredAt ? new Date(a.lastFilteredAt).getTime() : 0;
+                    const bTime = b.lastFilteredAt ? new Date(b.lastFilteredAt).getTime() : 0;
+                    return bTime - aTime;
                   })
                   .map(item => {
                     // Build parent hierarchy, but limit to 3 levels
