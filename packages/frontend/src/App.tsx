@@ -801,6 +801,11 @@ function App() {
   // Delete an item
   const deleteItem = async (id: string | undefined) => {
     if (!id) return;
+
+    // Show confirmation dialog
+    const confirmed = window.confirm('Are you sure you want to delete this item?');
+    if (!confirmed) return;
+
     setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/items/${id}`, {
