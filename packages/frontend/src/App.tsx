@@ -697,6 +697,11 @@ function App() {
         throw new Error(`Failed to update parent: ${errorText}`);
       }
 
+      // Update lastFilteredAt for the selected parent
+      if (parentId) {
+        await updateLastFilteredAt(parentId);
+      }
+
       // Clear selected item
       setSelectedItem(null);
 
@@ -924,12 +929,20 @@ function App() {
     console.log('Calculating parent options for item:', itemId);
 
     // Filter out the current item and any items that have this item as a parent
-    return allItems.filter(potentialParent =>
+    const filteredItems = allItems.filter(potentialParent =>
       // Don't show the current item as a potential parent
       potentialParent.id !== itemId &&
       // Don't show items that already have this item as parent to avoid cycles
       potentialParent.parentId !== itemId
     );
+
+    // Sort the filtered items using the same pattern as the filter
+    return filteredItems.sort((a, b) => {
+      // Sort by lastFilteredAt desc (most recent first)
+      const aTime = a.lastFilteredAt ? new Date(a.lastFilteredAt).getTime() : 0;
+      const bTime = b.lastFilteredAt ? new Date(b.lastFilteredAt).getTime() : 0;
+      return bTime - aTime;
+    });
   }, [allItems]);
 
   const handleAddBetween = (previousId: string | null, nextId: string | null) => {
