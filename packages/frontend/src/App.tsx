@@ -1420,10 +1420,17 @@ function App() {
                     let parentChain = item.title;
                     let currentParent = allItems.find(p => p.id === item.parentId);
                     let depth = 0;
+                    let hasMoreParents = false;
                     while (currentParent && depth < 2) {
                       parentChain = `${currentParent.title} → ${parentChain}`;
                       currentParent = allItems.find(p => p.id === currentParent?.parentId);
                       depth++;
+                    }
+                    if (currentParent) {
+                      hasMoreParents = true;
+                    }
+                    if (hasMoreParents) {
+                      parentChain = `… → ${parentChain}`;
                     }
                     return parentChain.toLowerCase().includes(parentFilterText.toLowerCase());
                   })
@@ -1444,10 +1451,17 @@ function App() {
                     let parentChain = item.title;
                     let currentParent = allItems.find(p => p.id === item.parentId);
                     let depth = 0;
+                    let hasMoreParents = false;
                     while (currentParent && depth < 2) {
                       parentChain = `${currentParent.title} → ${parentChain}`;
                       currentParent = allItems.find(p => p.id === currentParent?.parentId);
                       depth++;
+                    }
+                    if (currentParent) {
+                      hasMoreParents = true;
+                    }
+                    if (hasMoreParents) {
+                      parentChain = `… → ${parentChain}`;
                     }
                     return (
                       <div
