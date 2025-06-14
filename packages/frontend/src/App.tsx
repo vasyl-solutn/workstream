@@ -728,7 +728,7 @@ function App() {
       // Clear selected item
       setSelectedItem(null);
 
-      // Refresh the items list
+      // Refresh the items list to show updated order
       await fetchItems();
 
       // Highlight the moved item

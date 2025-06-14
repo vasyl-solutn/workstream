@@ -227,7 +227,8 @@ router.post('/items', async (req, res) => {
 router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, estimation, estimationFormat, priority, startedAt, parentId } = req.body;
+    const { title, estimation, estimationFormat, startedAt, parentId } = req.body;
+    let { priority } = req.body;
 
     if (!title) {
       res.status(400).json({ error: 'Title is required' });
@@ -248,6 +249,20 @@ router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
     const oldParentId = item.data()?.parentId;
 
     const updateStartTime = performance.now();
+
+    if (parentId && (oldParentId !== parentId)) {
+
+      const topChild = await db.collection('items')
+        .where('parentId', '==', parentId)
+        .orderBy('priority')
+        .limit(1)
+        .get();
+
+      if (!topChild.empty) {
+        priority = topChild.docs[0].data()?.priority - 1;
+      }
+    }
+
     await itemRef.update({
       title,
       ...(estimation !== undefined && { estimation }),
@@ -257,11 +272,12 @@ router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
       ...(parentId !== undefined && { parentId })
     });
 
-    // Update children count for both old and new parent
     if (oldParentId !== parentId) {
+      // Update children count for both old and new parent
       if (oldParentId) {
         await updateChildrenCount(oldParentId);
       }
+
       if (parentId) {
         await updateChildrenCount(parentId);
       }
