@@ -38,7 +38,7 @@ const TimerDisplay = ({ seconds, className }: { seconds: number, className: stri
 
   return (
     <span className={className}>
-      {minutes}:{secs.toString().padStart(2, '0')}
+      {displaySeconds <= 0 ? '0:00' : `${minutes}:${secs.toString().padStart(2, '0')}`}
     </span>
   );
 };
@@ -1058,7 +1058,9 @@ function App() {
         priority: item.priority,
         previousId: item.previousId,
         nextId: item.nextId,
-        parentId: currentParentFilters.length > 0 ? currentParentFilters[0] : null
+        parentId: currentParentFilters.length > 0 ? currentParentFilters[0] : null,
+        // Preserve timer state if the item was running
+        startedAt: item.isRunning ? item.startedAt : null
       };
 
       console.log('Sending item data to server:', itemData);
@@ -1112,7 +1114,16 @@ function App() {
 
         const updatedItems = prevItems.map(i =>
           (i.id === item.id || (i.isNew && !i.id)) // Match by ID or if it's a new item without ID
-            ? { ...updatedItem, highlight: true, isEditing: false, isEditingEstimation: false, isNew: false }
+            ? {
+                ...updatedItem,
+                highlight: true,
+                isEditing: false,
+                isEditingEstimation: false,
+                isNew: false,
+                // Preserve timer state if the item was running
+                isRunning: item.isRunning,
+                remainingSeconds: item.remainingSeconds
+              }
             : i
         );
 
@@ -1189,7 +1200,19 @@ function App() {
       )
     );
     setEditingTitle(item.title);
-    setEditingEstimationText(formatEstimation(item.estimation, item.estimationFormat || 'points'));
+
+    // For running items, show remaining time instead of initial estimation
+    if (item.isRunning && item.remainingSeconds !== undefined) {
+      if (item.remainingSeconds <= 0) {
+        setEditingEstimationText('0:00');
+      } else {
+        const minutes = Math.floor(item.remainingSeconds / 60);
+        const seconds = item.remainingSeconds % 60;
+        setEditingEstimationText(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+      }
+    } else {
+      setEditingEstimationText(formatEstimation(item.estimation, item.estimationFormat || 'points'));
+    }
 
     // Set focus after a small delay to ensure the form is rendered
     setTimeout(() => {
