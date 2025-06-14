@@ -903,11 +903,13 @@ h1, h2 {
   width: 100%;
   position: relative;
   z-index: 9999;
+  display: block;
 }
 
 .parent-search {
   position: relative;
   width: 100%;
+  display: block;
 }
 
 .parent-search-input {
@@ -929,19 +931,24 @@ h1, h2 {
 
 .parent-options {
   position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
   background: white;
   border: 1px solid #ddd;
   border-radius: 4px;
-  margin-top: 4px;
-  max-height: 300px;
+  max-height: 0;
   overflow-y: auto;
   z-index: 10000;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 #f1f5f9;
+  opacity: 0;
+  visibility: hidden;
+  transition: max-height 0.2s ease-out, opacity 0.2s ease-out, visibility 0.2s;
+}
+
+.parent-options.expanded {
+  max-height: 300px;
+  opacity: 1;
+  visibility: visible;
 }
 
 .parent-options::-webkit-scrollbar {
@@ -1091,4 +1098,20 @@ h1, h2 {
   color: #64748b;
   margin-top: 4px;
   font-style: italic;
+  cursor: pointer;
+  display: block;
+}
+
+.parent-title:hover {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.parent-title.placeholder {
+  color: #94a3b8;
+  font-style: normal;
+}
+
+.parent-title.placeholder:hover {
+  color: #3b82f6;
 }

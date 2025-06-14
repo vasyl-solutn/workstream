@@ -113,6 +113,7 @@ const ItemComponent = ({
 }) => {
   // State for parent search
   const [parentSearchTerm, setParentSearchTerm] = React.useState('');
+  const [showParentOptions, setShowParentOptions] = React.useState(false);
 
   // Filter parent options based on search term
   const filteredParentOptions = React.useMemo(() => {
@@ -242,9 +243,41 @@ const ItemComponent = ({
                   className={isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? "non-editable" : ""}
                 >
                   {item.title}
-                  {item.parentId && (
-                    <span className="parent-title">
+                  {item.parentId ? (
+                    <span
+                      className="parent-title"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (item.id) {
+                          setSelectedItem(item.id);
+                          setShowParentOptions(true);
+                          // Ensure the parent selection section is visible
+                          const parentSelection = document.querySelector('.parent-selection') as HTMLElement;
+                          if (parentSelection) {
+                            parentSelection.style.display = 'block';
+                          }
+                        }
+                      }}
+                    >
                       {allItems.find(p => p.id === item.parentId)?.title}
+                    </span>
+                  ) : (
+                    <span
+                      className="parent-title placeholder"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (item.id) {
+                          setSelectedItem(item.id);
+                          setShowParentOptions(true);
+                          // Ensure the parent selection section is visible
+                          const parentSelection = document.querySelector('.parent-selection') as HTMLElement;
+                          if (parentSelection) {
+                            parentSelection.style.display = 'block';
+                          }
+                        }
+                      }}
+                    >
+                      + Set parent
                     </span>
                   )}
                 </h3>
@@ -255,7 +288,13 @@ const ItemComponent = ({
               <div className="item-actions">
                 <button
                   className="icon-button move-button"
-                  onClick={() => item.id && setSelectedItem(item.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (item.id) {
+                      setSelectedItem(item.id);
+                      setShowParentOptions(false); // Ensure parent dropdown is closed when moving
+                    }
+                  }}
                   disabled={selectedItem === item.id}
                 >
                   <IoMove />
@@ -271,36 +310,15 @@ const ItemComponent = ({
           </div>
           <div className="item-details" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
             {selectedItem === item.id && (
-              <div className="parent-selection" style={{ width: '100%', padding: '10px 0' }}>
+              <div className="parent-selection" style={{ width: '100%', padding: '10px 0', display: 'block' }}>
                 <div className="parent-search" style={{ width: '100%', maxWidth: '400px' }}>
                   <input
                     type="text"
                     placeholder="Search parents..."
                     value={parentSearchTerm}
                     onChange={(e) => setParentSearchTerm(e.target.value)}
-                    onClick={(e) => {
-                      // Show options when input is clicked
-                      const options = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (options) {
-                        options.style.display = 'block';
-                      }
-                    }}
-                    onFocus={(e) => {
-                      // Show options when input is focused
-                      const options = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (options) {
-                        options.style.display = 'block';
-                      }
-                    }}
-                    onBlur={(e) => {
-                      // Don't hide options immediately to allow clicking
-                      setTimeout(() => {
-                        const options = e.currentTarget.nextElementSibling as HTMLElement;
-                        if (options) {
-                          options.style.display = 'none';
-                        }
-                      }, 200);
-                    }}
+                    onFocus={() => setShowParentOptions(true)}
+                    onBlur={() => setTimeout(() => setShowParentOptions(false), 200)}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -309,22 +327,25 @@ const ItemComponent = ({
                       borderRadius: '4px'
                     }}
                   />
-                  <div className="parent-options" style={{
-                    width: '100%',
-                    maxHeight: '300px',
-                    overflowY: 'auto',
-                    display: 'none', // Initially hidden
-                    position: 'absolute',
-                    zIndex: 1000,
-                    backgroundColor: 'white',
-                    border: '1px solid #ccc',
-                    borderRadius: '4px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: '4px'
-                  }}>
+                  <div
+                    className={`parent-options ${showParentOptions ? 'expanded' : ''}`}
+                    style={{
+                      width: '100%',
+                      maxHeight: showParentOptions ? '300px' : '0',
+                      overflowY: 'auto',
+                      position: 'absolute',
+                      zIndex: 1000,
+                      backgroundColor: 'white',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '4px',
+                      display: showParentOptions ? 'block' : 'none'
+                    }}
+                  >
                     <button
                       className="parent-option"
                       onClick={(e) => {
