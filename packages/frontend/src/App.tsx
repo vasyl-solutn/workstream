@@ -459,6 +459,8 @@ function App() {
   const [currentParentFilters, setCurrentParentFilters] = useState<string[]>([]);
   const [parentFilterText, setParentFilterText] = useState('');
   const [parentDropdownOpen, setParentDropdownOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   // Initialize audio
   useEffect(() => {
@@ -823,10 +825,23 @@ function App() {
   const deleteItem = async (id: string | undefined) => {
     if (!id) return;
 
-    // Show confirmation dialog
-    const confirmed = window.confirm('Are you sure you want to delete this item?');
-    if (!confirmed) return;
+    // Find the item to check if it has children
+    const item = items.find(item => item.id === id);
+    if (!item) return;
 
+    // Only show confirmation if the item has children
+    if (item.childrenCount && item.childrenCount > 0) {
+      setItemToDelete(id);
+      setShowDeleteConfirm(true);
+      return;
+    }
+
+    // If no children, delete immediately
+    await performDelete(id);
+  };
+
+  // Perform the actual deletion
+  const performDelete = async (id: string) => {
     setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/items/${id}`, {
@@ -1691,6 +1706,34 @@ function App() {
             Add Item
           </button>
         </form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+        <div className="delete-confirm-modal">
+          <h3>Confirm Deletion</h3>
+          <p>Are you sure you want to delete this item? It has child items.</p>
+          <div className="delete-confirm-actions">
+            <button
+              className="cancel-button"
+              onClick={() => setShowDeleteConfirm(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="delete-button"
+              onClick={() => {
+                if (itemToDelete) {
+                  performDelete(itemToDelete);
+                  setShowDeleteConfirm(false);
+                  setItemToDelete(null);
+                }
+              }}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   )
