@@ -1653,28 +1653,30 @@ function App() {
       ))}
 
       {/* Last item add/move button */}
-      <div className="item-wrapper">
-        {selectedItem ? (
-          <button
-            className="dot-button"
-            onClick={() => handleMove(sortedItems[sortedItems.length - 1]?.id || null, null)}
-            title="Paste at the end"
-          >
-            •
-          </button>
-        ) : (
-          <button
-            className="add-between-button"
-            onClick={() => handleAddBetween(
-              sortedItems[sortedItems.length - 1]?.id || null,
-              null
-            )}
-            disabled={isAnyItemEditing}
-          >
-            <IoAdd />
-          </button>
-        )}
-      </div>
+      {sortedItems.length > 0 && (
+        <div className="item-wrapper">
+          {selectedItem ? (
+            <button
+              className="dot-button"
+              onClick={() => handleMove(sortedItems[sortedItems.length - 1]?.id || null, null)}
+              title="Paste at the end"
+            >
+              •
+            </button>
+          ) : (
+            <button
+              className="add-between-button"
+              onClick={() => handleAddBetween(
+                sortedItems[sortedItems.length - 1]?.id || null,
+                null
+              )}
+              disabled={isAnyItemEditing}
+            >
+              <IoAdd />
+            </button>
+          )}
+        </div>
+      )}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
         <form onSubmit={handleSubmit} className="item-form">
