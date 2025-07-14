@@ -443,6 +443,109 @@ router.patch('/items/:id/last-filtered', async (req: Request<{ id: string }>, re
   }
 });
 
+// Constants for item queries
+const ITEMS_LIMIT = 10;
+
+// Optimized endpoint for both recent items and autocomplete
+router.get('/items/recent-parent', async (req, res) => {
+  try {
+    const collectionStartTime = performance.now();
+    const { parentId, q, limit = ITEMS_LIMIT } = req.query;
+    const searchTerm = q as string;
+    const queryLimit = Math.min(Number(limit), ITEMS_LIMIT);
+
+    let items: Array<Item & { id: string }> = [];
+    const parentIds = Array.isArray(parentId) ? parentId : parentId ? [parentId] : [];
+
+        // If search term is provided, use autocomplete logic
+    if (searchTerm && searchTerm.trim().length >= 2) {
+      // Use Firestore text search with title field and lastFilteredAt ordering
+      let query = db.collection('items')
+        .orderBy('title')
+        .orderBy('lastFilteredAt', 'desc')
+        .startAt(searchTerm)
+        .limit(queryLimit);
+
+      // Apply parent filtering if specified
+      if (parentId === 'null') {
+        query = query.where('parentId', '==', null);
+      } else if (parentIds.length > 0) {
+        // Note: Firestore doesn't support 'in' queries with orderBy on different fields
+        // We'll need to handle this in memory for multiple parentIds
+        if (parentIds.length === 1) {
+          query = query.where('parentId', '==', parentIds[0]);
+        }
+      }
+
+      const snapshot = await query.get();
+      const allItems = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Array<Item & { id: string }>;
+
+      // Handle multiple parentIds filtering in memory
+      if (parentIds.length > 1) {
+        items = allItems.filter(item =>
+          parentIds.includes(item.parentId as string)
+        );
+      } else {
+        items = allItems;
+      }
+
+      // Sort by relevance (exact matches first, then by lastFilteredAt)
+      items.sort((a, b) => {
+        const aExact = a.title.toLowerCase() === searchTerm.toLowerCase();
+        const bExact = b.title.toLowerCase() === searchTerm.toLowerCase();
+
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+
+        // Items are already sorted by lastFilteredAt desc from the query
+        return 0;
+      });
+
+      // Apply limit after sorting
+      items = items.slice(0, queryLimit);
+    } else {
+      // Use recent items logic (no search term)
+      let query = db.collection('items')
+        .orderBy('createdAt', 'desc')
+        .orderBy('lastFilteredAt', 'desc')
+        .limit(queryLimit);
+
+      // Apply parent filtering if specified
+      if (parentId === 'null') {
+        query = query.where('parentId', '==', null);
+      } else if (parentIds.length > 0) {
+        if (parentIds.length === 1) {
+          query = query.where('parentId', '==', parentIds[0]);
+        }
+      }
+
+      const snapshot = await query.get();
+      const allItems = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Array<Item & { id: string }>;
+
+      // Handle multiple parentIds filtering in memory
+      if (parentIds.length > 1) {
+        items = allItems.filter(item =>
+          parentIds.includes(item.parentId as string)
+        );
+      } else {
+        items = allItems;
+      }
+    }
+
+    console.info(`Database query took ${(performance.now() - collectionStartTime).toFixed(2)}ms`);
+    res.json(items);
+  } catch (error) {
+    console.error('Error fetching items:', error);
+    res.status(500).json({ error: 'Failed to fetch items' });
+  }
+});
+
 // Use the router
 app.use('/', router);
 
