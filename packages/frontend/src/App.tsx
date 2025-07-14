@@ -573,87 +573,7 @@ function App() {
     };
   }, []); // Empty dependency array to only set up timer once
 
-  // Fetch items for parent dropdown/top filter
-  const fetchRecentItems = async (parentIds: string[] = currentParentFilters) => {
-    try {
-      setIsLoading(true);
-
-      // Create URL with parentIds query parameters
-      let url = `${API_URL}/items/recent-parent`;
-
-      // Add parent filter parameters
-      if (parentIds.length > 0) {
-        // Build query with multiple parentId parameters
-        const params = new URLSearchParams();
-        parentIds.forEach(id => params.append('parentId', id));
-        url += `?${params.toString()}`;
-      } else {
-        // Explicitly add parentId=null when no filters are selected
-        url += `?parentId=null`;
-      }
-
-      console.log('Fetching parent filter items with URL:', url);
-      const response = await fetch(url);
-
-      if (!response.ok) throw new Error('Failed to fetch parent filter items');
-      const data = await response.json();
-      console.log('Received parent filter data from backend:', data.length, 'items');
-
-      // Process items to set up timer states
-      const processedItems = data.map((item: ExtendedItem) => {
-        // Check if this item has a timer running (startedAt is set)
-        if (item.startedAt) {
-          console.log(`Item ${item.id} has startedAt=${item.startedAt}`);
-
-          const startTime = new Date(item.startedAt).getTime();
-          const now = new Date().getTime();
-          const elapsedSeconds = Math.floor((now - startTime) / 1000);
-          const totalSeconds = Math.floor(item.estimation * 60);
-          const remainingSeconds = Math.max(0, totalSeconds - elapsedSeconds);
-
-          console.log(`Item ${item.id}: elapsed=${elapsedSeconds}s, total=${totalSeconds}s, remaining=${remainingSeconds}s`);
-
-          // If timer should be running
-          if (remainingSeconds > 0) {
-            console.log(`Item ${item.id} has a running timer with ${remainingSeconds}s remaining`);
-            return {
-              ...item,
-              isRunning: true,
-              remainingSeconds
-            };
-          } else {
-            // Timer should have completed - will be reset on next render
-            console.log(`Item ${item.id} timer should have completed`);
-            return {
-              ...item,
-              isRunning: false,
-              remainingSeconds: 0
-            };
-          }
-        }
-        return item;
-      });
-
-      console.log('Setting processed parent filter items:', processedItems.length, 'items');
-      const runningItems = processedItems.filter((item: ExtendedItem) => item.isRunning);
-      console.log(`Found ${runningItems.length} running timers:`, runningItems.map((i: ExtendedItem) => i.id));
-
-      setItems(processedItems);
-
-      // Fetch all items for the dropdown
-      const allItemsResponse = await fetch(`${API_URL}/items`);
-      if (allItemsResponse.ok) {
-        const allItemsData = await allItemsResponse.json();
-        setAllItems(allItemsData);
-      }
-    } catch (error) {
-      console.error('Error fetching parent filter items:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Fetch main items list
+  // Fetch main items list with parent filtering
   const fetchItems = async (parentIds: string[] = currentParentFilters) => {
     try {
       setIsLoading(true);
@@ -672,7 +592,7 @@ function App() {
         url += `?parentId=null`;
       }
 
-      console.log('Fetching main items list with URL:', url);
+      console.log('Fetching main items list with parent filtering:', url);
       const response = await fetch(url);
 
       if (!response.ok) throw new Error('Failed to fetch main items list');
@@ -733,6 +653,8 @@ function App() {
     }
   };
 
+
+
   // Autocomplete function with debouncing
   const searchAutocomplete = async (searchTerm: string) => {
     if (!searchTerm || searchTerm.trim().length < 2) {
@@ -782,7 +704,7 @@ function App() {
     if (parentId === null) {
       // If "All Tasks" is clicked, clear all filters
       setCurrentParentFilters([]);
-      fetchRecentItems([]);
+      fetchItems([]);
       return;
     }
 
@@ -801,7 +723,7 @@ function App() {
     }
 
     setCurrentParentFilters(newParentFilters);
-    fetchRecentItems(newParentFilters);
+    fetchItems(newParentFilters);
   };
 
   // Handle setting a parent for an item (when moving)
@@ -934,7 +856,7 @@ function App() {
   // Load items on initial render
   useEffect(() => {
     console.log("Initial items load triggered");
-    fetchRecentItems()
+    fetchItems()
   }, [])  // Empty dependency array means this runs once on mount
 
   // Delete an item
