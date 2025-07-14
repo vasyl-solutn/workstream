@@ -664,7 +664,7 @@ function App() {
 
     try {
       setIsAutocompleteLoading(true);
-      const response = await fetch(`${API_URL}/items/recent-parent?q=${encodeURIComponent(searchTerm)}&limit=10`);
+      const response = await fetch(`${API_URL}/parents-autocomplete?q=${encodeURIComponent(searchTerm)}&limit=10`);
 
       if (response.ok) {
         const data = await response.json();
@@ -1428,7 +1428,7 @@ function App() {
   // Fetch all items for parent dropdown/top filter
   const fetchAllItems = async () => {
     try {
-      const response = await fetch(`${API_URL}/items/recent-parent`);
+      const response = await fetch(`${API_URL}/parents-autocomplete`);
       if (!response.ok) throw new Error('Failed to fetch parent dropdown items');
       const data = await response.json();
       setAllItems(data);
