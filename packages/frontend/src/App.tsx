@@ -156,16 +156,6 @@ const ItemComponent = ({
           {/* Main item title - on its own line */}
           {item.isEditing ? (
             <div className="title-edit">
-              <div className="estimation-section">
-                <input
-                  type="text"
-                  value={editingEstimationText}
-                  onChange={(e) => setEditingEstimationText(e.target.value)}
-                  placeholder="N or MM:SS"
-                  className="estimation-input"
-                  autoFocus={false}
-                />
-              </div>
               <textarea
                 value={editingTitle}
                 onChange={(e) => setEditingTitle(e.target.value)}
@@ -182,6 +172,16 @@ const ItemComponent = ({
                 className="title-input"
                 autoFocus
               />
+              <div className="estimation-section">
+                <input
+                  type="text"
+                  value={editingEstimationText}
+                  onChange={(e) => setEditingEstimationText(e.target.value)}
+                  placeholder="N or MM:SS"
+                  className="estimation-input"
+                  autoFocus={false}
+                />
+              </div>
               <div className="edit-actions">
                 <button onClick={() => {
                   console.log("Save button clicked for item:", item);

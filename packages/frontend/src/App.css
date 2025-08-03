@@ -191,8 +191,8 @@ main h2 {
 
 .item-header h3 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 400;
+  font-size: 12px;
+  font-weight: 200;
   color: #1e293b;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -908,13 +908,15 @@ h1, h2 {
   line-height: 1;
 }
 
-.item-header h3.non-editable,
+h3.non-editable,
 .estimation.non-editable {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.3;
+  font-weight: 200;
+  color: #94a3b8;
 }
 
-.item-header h3.non-editable:hover,
+h3.non-editable:hover,
 .estimation.non-editable:hover {
   background-color: transparent;
 }
