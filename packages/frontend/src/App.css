@@ -167,10 +167,32 @@ main h2 {
   gap: 1rem;
 }
 
+.item-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 8px;
+  gap: 1rem;
+}
+
+.estimation-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.estimated-time {
+  font-size: 0.8em;
+  color: #666;
+  margin-left: 4px;
+}
+
 .item-header h3 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 400;
   color: #1e293b;
   line-height: 1.5;
   white-space: pre-wrap;
