@@ -189,6 +189,23 @@ main h2 {
   margin-left: 4px;
 }
 
+.item-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 200;
+  color: #1e293b;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .item-header h3 {
   margin: 0;
   font-size: 12px;
@@ -908,7 +925,7 @@ h1, h2 {
   line-height: 1;
 }
 
-h3.non-editable,
+.item-title.non-editable,
 .estimation.non-editable {
   cursor: not-allowed;
   opacity: 0.3;
@@ -916,7 +933,7 @@ h3.non-editable,
   color: #94a3b8;
 }
 
-h3.non-editable:hover,
+.item-title.non-editable:hover,
 .estimation.non-editable:hover {
   background-color: transparent;
 }

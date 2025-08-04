@@ -198,11 +198,16 @@ const ItemComponent = ({
               </div>
             </div>
           ) : (
-            <h3
+            <div
               onClick={() => handleTitleEdit(item, false)}
-              className={isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? "non-editable" : ""}
+              className={`item-title ${isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? "non-editable" : ""}`}
             >
-              {item.title}
+              {item.title.split('\n').map((line, index) => (
+                <React.Fragment key={index}>
+                  {line}
+                  {index < item.title.split('\n').length - 1 && <br />}
+                </React.Fragment>
+              ))}
               {item.parentId ? (
                 <span
                   className="parent-title"
@@ -240,7 +245,7 @@ const ItemComponent = ({
                   + Set parent
                 </span>
               )}
-            </h3>
+            </div>
           )}
 
           {/* Estimation and actions row - separate line below title */}
