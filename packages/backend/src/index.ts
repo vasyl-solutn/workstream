@@ -17,7 +17,7 @@ type ItemUpdate = {
 };
 
 const app: Express = express();
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 4000;
 const router = express.Router() as Router;
 
 app.use(cors());

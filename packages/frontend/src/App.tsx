@@ -148,138 +148,140 @@ const ItemComponent = ({
       </div>
       <article className={`item-card ${selectedItem === item.id ? 'selected' : ''} ${item.highlight ? 'highlight' : ''}`}>
         <div className="item-content">
-          <div className="item-header">
-            {!item.isEditing && !item.isEditingEstimation && (
-              <div className="timer-container" style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <span
-                    className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''} ${isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? 'non-editable' : ''}`}
-                    onClick={() => !item.isRunning && handleTitleEdit(item, true)}
-                  >
-                    {item.isRunning
-                      ? <TimerDisplay
-                          seconds={item.remainingSeconds || 0}
-                          className="timer-display"
-                        />
-                      : formatEstimation(item.estimation, item.estimationFormat || 'points')
-                    }
-                  </span>
-                  {item.estimationFormat === 'time' && (
-                    !item.isRunning ? (
-                      <button className="timer-button" onClick={() => handleStartTimer(item)}>
-                        <IoPlay />
-                      </button>
-                    ) : (
-                      <button className="timer-button" onClick={() => handleStopTimer(item)}>
-                        <IoStop />
-                      </button>
-                    )
-                  )}
-                  {item.childrenCount !== undefined && item.childrenCount > 0 && (
-                    <span className="children-count" title={`${item.childrenCount} child items`}>
-                      {item.childrenCount}
-                    </span>
-                  )}
-                </div>
-                {item.estimationFormat === 'time' && (
-                  <div style={{ fontSize: '0.7em', color: '#666', marginTop: '2px', textAlign: 'left' }}>
-                    by: {calculateEstimatedTime(sortedItems, index)}
-                  </div>
-                )}
+          {/* Main item title - on its own line */}
+          {item.isEditing ? (
+            <div className="title-edit">
+              <textarea
+                value={editingTitle}
+                onChange={(e) => setEditingTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.metaKey) {
+                    console.log("Cmd+Enter pressed, saving item:", item);
+                    handleSaveNewItem(item);
+                  } else if (e.key === 'Escape') {
+                    console.log("Escape pressed, canceling item");
+                    handleCancelNewItem();
+                  }
+                }}
+                placeholder="Enter title"
+                className="title-input"
+                autoFocus
+              />
+              <div className="estimation-section">
+                <input
+                  type="text"
+                  value={editingEstimationText}
+                  onChange={(e) => setEditingEstimationText(e.target.value)}
+                  placeholder="N or MM:SS"
+                  className="estimation-input"
+                  autoFocus={false}
+                />
               </div>
-            )}
-            {item.isEditing ? (
-              <div className="title-edit">
-                <div className="estimation-section">
-                  <input
-                    type="text"
-                    value={editingEstimationText}
-                    onChange={(e) => setEditingEstimationText(e.target.value)}
-                    placeholder="N or MM:SS"
-                    className="estimation-input"
-                    autoFocus={false}
-                  />
-                </div>
-                <textarea
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.metaKey) {
-                      console.log("Cmd+Enter pressed, saving item:", item);
-                      handleSaveNewItem(item);
-                    } else if (e.key === 'Escape') {
-                      console.log("Escape pressed, canceling item");
-                      handleCancelNewItem();
+              <div className="edit-actions">
+                <button onClick={() => {
+                  console.log("Save button clicked for item:", item);
+                  handleSaveNewItem(item);
+                }}>
+                  Save
+                </button>
+                <button onClick={() => {
+                  console.log("Cancel button clicked");
+                  handleCancelNewItem();
+                }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={() => handleTitleEdit(item, false)}
+              className={`item-title ${isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? "non-editable" : ""}`}
+            >
+              {item.title.split('\n').map((line, index) => (
+                <React.Fragment key={index}>
+                  {line}
+                  {index < item.title.split('\n').length - 1 && <br />}
+                </React.Fragment>
+              ))}
+              {item.parentId ? (
+                <span
+                  className="parent-title"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (item.id) {
+                      setSelectedItem(item.id);
+                      setShowParentOptions(true);
+                      // Ensure the parent selection section is visible
+                      const parentSelection = document.querySelector('.parent-selection') as HTMLElement;
+                      if (parentSelection) {
+                        parentSelection.style.display = 'block';
+                      }
                     }
                   }}
-                  placeholder="Enter title"
-                  className="title-input"
-                  autoFocus
-                />
-                <div className="edit-actions">
-                  <button onClick={() => {
-                    console.log("Save button clicked for item:", item);
-                    handleSaveNewItem(item);
-                  }}>
-                    Save
-                  </button>
-                  <button onClick={() => {
-                    console.log("Cancel button clicked");
-                    handleCancelNewItem();
-                  }}>
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <h3
-                  onClick={() => handleTitleEdit(item, false)}
-                  className={isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? "non-editable" : ""}
                 >
-                  {item.title}
-                  {item.parentId ? (
-                    <span
-                      className="parent-title"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (item.id) {
-                          setSelectedItem(item.id);
-                          setShowParentOptions(true);
-                          // Ensure the parent selection section is visible
-                          const parentSelection = document.querySelector('.parent-selection') as HTMLElement;
-                          if (parentSelection) {
-                            parentSelection.style.display = 'block';
-                          }
-                        }
-                      }}
-                    >
-                      {allItems.find(p => p.id === item.parentId)?.title}
-                    </span>
-                  ) : (
-                    <span
-                      className="parent-title placeholder"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (item.id) {
-                          setSelectedItem(item.id);
-                          setShowParentOptions(true);
-                          // Ensure the parent selection section is visible
-                          const parentSelection = document.querySelector('.parent-selection') as HTMLElement;
-                          if (parentSelection) {
-                            parentSelection.style.display = 'block';
-                          }
-                        }
-                      }}
-                    >
-                      + Set parent
-                    </span>
-                  )}
-                </h3>
-              </>
-            )}
+                  {allItems.find(p => p.id === item.parentId)?.title}
+                </span>
+              ) : (
+                <span
+                  className="parent-title placeholder"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (item.id) {
+                      setSelectedItem(item.id);
+                      setShowParentOptions(true);
+                      // Ensure the parent selection section is visible
+                      const parentSelection = document.querySelector('.parent-selection') as HTMLElement;
+                      if (parentSelection) {
+                        parentSelection.style.display = 'block';
+                      }
+                    }
+                  }}
+                >
+                  + Set parent
+                </span>
+              )}
+            </div>
+          )}
 
-            {!item.isEditing && (
+          {/* Estimation and actions row - separate line below title */}
+          {!item.isEditing && !item.isEditingEstimation && (
+            <div className="item-meta-row">
+              <div className="estimation-section">
+                <span
+                  className={`estimation ${item.isRunning ? 'running' : ''} ${completedTimerId === item.id ? 'timer-complete' : ''} ${isAnyItemEditing && !item.isEditing && !item.isEditingEstimation ? 'non-editable' : ''}`}
+                  onClick={() => !item.isRunning && handleTitleEdit(item, true)}
+                >
+                  {item.isRunning
+                    ? <TimerDisplay
+                        seconds={item.remainingSeconds || 0}
+                        className="timer-display"
+                      />
+                    : formatEstimation(item.estimation, item.estimationFormat || 'points')
+                  }
+                </span>
+                {item.estimationFormat === 'time' && (
+                  !item.isRunning ? (
+                    <button className="timer-button" onClick={() => handleStartTimer(item)}>
+                      <IoPlay />
+                    </button>
+                  ) : (
+                    <button className="timer-button" onClick={() => handleStopTimer(item)}>
+                      <IoStop />
+                    </button>
+                  )
+                )}
+                {item.childrenCount !== undefined && item.childrenCount > 0 && (
+                  <span className="children-count" title={`${item.childrenCount} child items`}>
+                    {item.childrenCount}
+                  </span>
+                )}
+                {item.estimationFormat === 'time' && (
+                  <span className="estimated-time">
+                    by: {calculateEstimatedTime(sortedItems, index)}
+                  </span>
+                )}
+              </div>
+
               <div className="item-actions">
                 <button
                   className="icon-button move-button"
@@ -301,8 +303,8 @@ const ItemComponent = ({
                   <IoTrashOutline />
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
           <div className="item-details" style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
             {selectedItem === item.id && (
               <div className="parent-selection" style={{ width: '100%', padding: '10px 0', display: 'block' }}>

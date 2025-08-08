@@ -167,10 +167,49 @@ main h2 {
   gap: 1rem;
 }
 
-.item-header h3 {
+.item-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-top: 8px;
+  gap: 1rem;
+}
+
+.estimation-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.estimated-time {
+  font-size: 0.8em;
+  color: #666;
+  margin-left: 4px;
+}
+
+.item-title {
   margin: 0;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 400;
+  color: #1e293b;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.item-header h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 200;
   color: #1e293b;
   line-height: 1.5;
   white-space: pre-wrap;
@@ -886,13 +925,15 @@ h1, h2 {
   line-height: 1;
 }
 
-.item-header h3.non-editable,
+.item-title.non-editable,
 .estimation.non-editable {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.3;
+  font-weight: 200;
+  color: #94a3b8;
 }
 
-.item-header h3.non-editable:hover,
+.item-title.non-editable:hover,
 .estimation.non-editable:hover {
   background-color: transparent;
 }
