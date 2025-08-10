@@ -1,6 +1,7 @@
 import express, { Express, Request, Response, Router, RequestHandler } from 'express';
 import cors from 'cors';
 import { db } from './db';
+import algoliasearch from 'algoliasearch';
 import * as admin from 'firebase-admin';
 import { CreateItemDto, Item } from '@workstream/shared';
 import { ParamsDictionary } from 'express-serve-static-core';
@@ -22,6 +23,55 @@ const router = express.Router() as Router;
 
 app.use(cors());
 app.use(express.json());
+
+// Algolia setup (optional; enabled when env vars are provided)
+const ALGOLIA_APP_ID = process.env.ALGOLIA_APP_ID;
+const ALGOLIA_API_KEY = process.env.ALGOLIA_API_KEY; // Admin key for indexing
+const ALGOLIA_INDEX_NAME = process.env.ALGOLIA_INDEX_NAME || 'items';
+
+let algoliaIndex: any = null;
+try {
+  if (ALGOLIA_APP_ID && ALGOLIA_API_KEY) {
+    const client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_API_KEY);
+    algoliaIndex = client.initIndex(ALGOLIA_INDEX_NAME);
+    console.log(`Algolia initialized for index ${ALGOLIA_INDEX_NAME}`);
+    // Best-effort default settings
+    (async () => {
+      try {
+        await algoliaIndex.setSettings({
+          searchableAttributes: ['title'],
+          removeWordsIfNoResults: 'allOptional',
+          ignorePlurals: true
+        });
+        console.log('Algolia index settings applied');
+      } catch (e) {
+        console.warn('Algolia setSettings failed:', e);
+      }
+    })();
+  } else {
+    console.log('Algolia not configured (set ALGOLIA_APP_ID and ALGOLIA_API_KEY to enable)');
+  }
+} catch (e) {
+  console.warn('Algolia init failed:', e);
+}
+
+async function syncItemToAlgolia(id: string, data: any) {
+  if (!algoliaIndex) return;
+  try {
+    await algoliaIndex.saveObject({ objectID: id, ...data });
+  } catch (e) {
+    console.warn('Algolia saveObject failed:', e);
+  }
+}
+
+async function deleteItemFromAlgolia(id: string) {
+  if (!algoliaIndex) return;
+  try {
+    await algoliaIndex.deleteObject(id);
+  } catch (e) {
+    console.warn('Algolia deleteObject failed:', e);
+  }
+}
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Workstream API' });
@@ -111,17 +161,26 @@ router.get('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
 
 // Helper function to update children count
 async function updateChildrenCount(parentId: string | null) {
+  const startTime = performance.now();
   if (!parentId) return;
+
 
   const childrenSnapshot = await db.collection('items')
     .where('parentId', '==', parentId)
     .get();
+  console.info(`Database get children count took ${(performance.now() - startTime).toFixed(2)}ms`);
 
   const childrenCount = childrenSnapshot.size;
 
+  console.info(`Database get children count size took ${(performance.now() - startTime).toFixed(2)}ms`);
+
+  console.log({ parentId, childrenCount });
+
+  const parentTime = performance.now();
   await db.collection('items').doc(parentId).update({
     childrenCount
   });
+  console.info(`Database update children count took ${(performance.now() - parentTime).toFixed(2)}ms`);
 }
 
 // Add a new item
@@ -212,6 +271,8 @@ router.post('/items', async (req, res) => {
     console.info(`Database insert took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     const item = await newItem.get();
+    // Sync to Algolia
+    await syncItemToAlgolia(item.id, item.data());
     res.status(201).json({
       id: item.id,
       ...item.data()
@@ -285,6 +346,8 @@ router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
     console.info(`Database update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
 
     const updatedItem = await itemRef.get();
+    // Sync to Algolia
+    await syncItemToAlgolia(updatedItem.id, updatedItem.data());
     res.json({
       id: updatedItem.id,
       ...updatedItem.data()
@@ -312,6 +375,8 @@ router.delete('/items/:id', async (req: Request<{ id: string }>, res: Response):
     const parentId = item.data()?.parentId;
 
     await itemRef.delete();
+    // Remove from Algolia
+    await deleteItemFromAlgolia(id);
 
     // Update parent's children count
     if (parentId) {
@@ -409,6 +474,8 @@ router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response
     console.info(`Database move took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     const updatedItem = await itemRef.get();
+    // Sync to Algolia
+    await syncItemToAlgolia(updatedItem.id, updatedItem.data());
     res.json({
       id: updatedItem.id,
       ...updatedItem.data()
@@ -435,6 +502,9 @@ router.patch('/items/:id/last-filtered', async (req: Request<{ id: string }>, re
       return;
     }
     await itemRef.update({ lastFilteredAt });
+    // Sync to Algolia
+    const updated = await itemRef.get();
+    await syncItemToAlgolia(updated.id, updated.data());
     res.status(204).send();
   } catch (error) {
     console.error('Error updating lastFilteredAt:', error);
@@ -443,38 +513,34 @@ router.patch('/items/:id/last-filtered', async (req: Request<{ id: string }>, re
 });
 
 // Constants for item queries
-const ITEMS_LIMIT = 10;
+const ITEMS_LIMIT = 15;
 
 // Optimized endpoint for both recent items and autocomplete
 router.get('/parents-autocomplete', async (req, res) => {
   try {
     const collectionStartTime = performance.now();
     const { q, limit = ITEMS_LIMIT } = req.query;
-    const searchTerm = q as string;
+    const searchTerm = (q as string) || '';
     const queryLimit = Math.min(Number(limit), ITEMS_LIMIT);
 
-    // Always order by lastFilteredAt descending
-    let query = db.collection('items')
-      .orderBy('lastFilteredAt', 'desc')
-      .limit(queryLimit);
+    let items: Array<Item & { id: string }> = [];
 
-    // No parent filtering
+    if (searchTerm.trim().length >= 2 && algoliaIndex) {
+      // Query Algolia for contains/infix search
+      const result = await algoliaIndex.search(searchTerm, { hitsPerPage: queryLimit });
+      items = (result.hits as any[]).map(hit => {
+        const { objectID, ...rest } = hit;
+        return { id: objectID as string, ...(rest as any) } as Item & { id: string };
+      });
+    } else {
+      // No filter: order by lastFilteredAt desc
+      const snapshot = await db.collection('items')
+        .orderBy('lastFilteredAt', 'desc')
+        .limit(queryLimit)
+        .get();
 
-    // If search term is provided, filter in memory (Firestore can't do contains)
-    const snapshot = await query.get();
-    let allItems = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Array<Item & { id: string }>;
-
-    if (searchTerm && searchTerm.trim().length >= 2) {
-      allItems = allItems.filter(item =>
-        item.title.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Array<Item & { id: string }>;
     }
-
-    // Limit results after filtering
-    const items = allItems.slice(0, queryLimit);
 
     console.info(`Parents-autocomplete: ${(performance.now() - collectionStartTime).toFixed(2)}ms, ${items.length} items`);
     res.json(items);

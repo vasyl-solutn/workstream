@@ -5,6 +5,7 @@
     "@workstream/shared": "1.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
+    "algoliasearch": "^4.24.0",
     "express": "^4.21.2",
     "firebase-admin": "^13.2.0"
   },
