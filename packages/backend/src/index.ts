@@ -1,10 +1,9 @@
-import express, { Express, Request, Response, Router, RequestHandler } from 'express';
+import express, { Express, Request, Response, Router } from 'express';
 import cors from 'cors';
 import { db } from './db';
+import { deleteItemFromAlgolia, isAlgoliaEnabled, searchAlgolia, syncItemToAlgolia } from './services/algolia';
 import * as admin from 'firebase-admin';
-import { CreateItemDto, Item } from '@workstream/shared';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { DocumentData, Query } from 'firebase-admin/firestore';
+import { Item } from '@workstream/shared';
 
 // Ensure Item type is correctly including startedAt and parentId
 type ItemUpdate = {
@@ -22,6 +21,8 @@ const router = express.Router() as Router;
 
 app.use(cors());
 app.use(express.json());
+
+// Algolia is initialized in services/algolia; helpers imported above
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Workstream API' });
@@ -68,7 +69,6 @@ router.get('/items', async (req, res) => {
     if (parentId === 'null') {
       // Filter for root level items (no parent)
       console.log('Filtering for root level items');
-      console.dir(allItems);
       items = allItems.filter(item => !item.parentId);
     } else if (parentIds.length > 0) {
         // Filter items that have any of the specified parentIds
@@ -80,7 +80,7 @@ router.get('/items', async (req, res) => {
       items = allItems;
     }
 
-    console.info(`Database query took ${(performance.now() - collectionStartTime).toFixed(2)}ms`);
+    console.info(`Items query: ${(performance.now() - collectionStartTime).toFixed(2)}ms, ${items.length} items`);
     res.json(items);
   } catch (error) {
     console.error('Error fetching items:', error);
@@ -112,17 +112,26 @@ router.get('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
 
 // Helper function to update children count
 async function updateChildrenCount(parentId: string | null) {
+  const startTime = performance.now();
   if (!parentId) return;
+
 
   const childrenSnapshot = await db.collection('items')
     .where('parentId', '==', parentId)
     .get();
+  console.info(`Database get children count took ${(performance.now() - startTime).toFixed(2)}ms`);
 
   const childrenCount = childrenSnapshot.size;
 
+  console.info(`Database get children count size took ${(performance.now() - startTime).toFixed(2)}ms`);
+
+  console.log({ parentId, childrenCount });
+
+  const parentTime = performance.now();
   await db.collection('items').doc(parentId).update({
     childrenCount
   });
+  console.info(`Database update children count took ${(performance.now() - parentTime).toFixed(2)}ms`);
 }
 
 // Add a new item
@@ -213,6 +222,8 @@ router.post('/items', async (req, res) => {
     console.info(`Database insert took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     const item = await newItem.get();
+    // Sync to Algolia
+    await syncItemToAlgolia(item.id, item.data());
     res.status(201).json({
       id: item.id,
       ...item.data()
@@ -286,6 +297,8 @@ router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
     console.info(`Database update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
 
     const updatedItem = await itemRef.get();
+    // Sync to Algolia
+    await syncItemToAlgolia(updatedItem.id, updatedItem.data());
     res.json({
       id: updatedItem.id,
       ...updatedItem.data()
@@ -313,6 +326,8 @@ router.delete('/items/:id', async (req: Request<{ id: string }>, res: Response):
     const parentId = item.data()?.parentId;
 
     await itemRef.delete();
+    // Remove from Algolia
+    await deleteItemFromAlgolia(id);
 
     // Update parent's children count
     if (parentId) {
@@ -410,6 +425,8 @@ router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response
     console.info(`Database move took ${(performance.now() - startTime).toFixed(2)}ms`);
 
     const updatedItem = await itemRef.get();
+    // Sync to Algolia
+    await syncItemToAlgolia(updatedItem.id, updatedItem.data());
     res.json({
       id: updatedItem.id,
       ...updatedItem.data()
@@ -436,10 +453,48 @@ router.patch('/items/:id/last-filtered', async (req: Request<{ id: string }>, re
       return;
     }
     await itemRef.update({ lastFilteredAt });
+    // Sync to Algolia
+    const updated = await itemRef.get();
+    await syncItemToAlgolia(updated.id, updated.data());
     res.status(204).send();
   } catch (error) {
     console.error('Error updating lastFilteredAt:', error);
     res.status(500).json({ error: 'Failed to update lastFilteredAt' });
+  }
+});
+
+// Constants for item queries
+const ITEMS_LIMIT = 15;
+
+// Optimized endpoint for both recent items and autocomplete
+router.get('/parents-autocomplete', async (req, res) => {
+  try {
+    const collectionStartTime = performance.now();
+    const { q, limit = ITEMS_LIMIT } = req.query;
+    const searchTerm = (q as string) || '';
+    const queryLimit = Math.min(Number(limit), ITEMS_LIMIT);
+
+    let items: Array<Item & { id: string }> = [];
+
+    if (searchTerm.trim().length >= 2 && isAlgoliaEnabled()) {
+      // Query Algolia for contains/infix search
+      const hits = await searchAlgolia(searchTerm, queryLimit);
+      items = hits as any;
+    } else {
+      // No filter: order by lastFilteredAt desc
+      const snapshot = await db.collection('items')
+        .orderBy('lastFilteredAt', 'desc')
+        .limit(queryLimit)
+        .get();
+
+      items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Array<Item & { id: string }>;
+    }
+
+    console.info(`Parents-autocomplete: ${(performance.now() - collectionStartTime).toFixed(2)}ms, ${items.length} items`);
+    res.json(items);
+  } catch (error) {
+    console.error('Error fetching items:', error);
+    res.status(500).json({ error: 'Failed to fetch items' });
   }
 });
 

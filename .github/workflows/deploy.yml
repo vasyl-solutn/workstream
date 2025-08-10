@@ -59,7 +59,8 @@ jobs:
             --image ${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/workstream/backend:latest \
             --platform managed \
             --region ${{ env.GCP_REGION }} \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-env-vars ALGOLIA_APP_ID=${{ secrets.ALGOLIA_APP_ID }},ALGOLIA_API_KEY=${{ secrets.ALGOLIA_API_KEY }},ALGOLIA_INDEX_NAME=${{ secrets.ALGOLIA_INDEX_NAME }}
 
       - name: Deploy Frontend to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0

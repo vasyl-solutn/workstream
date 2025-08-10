@@ -4,6 +4,7 @@ import { API_URL } from './config/api'
 import Modal from './components/Modal'
 import { IoAdd, IoTrashOutline, IoMove, IoPlay, IoStop } from 'react-icons/io5'
 import { Item, CreateItemDto } from '@workstream/shared'
+import { debounce } from './utils/debounce'
 
 // Timer Display component with its own tick
 const TimerDisplay = ({ seconds, className }: { seconds: number, className: string }) => {
@@ -83,8 +84,10 @@ const ItemComponent = ({
   handleAddBetween,
   isAnyItemEditing,
   handleSetParent,
-  availableParentOptions,
-  allItems
+  allItems,
+  debouncedSearchAutocomplete,
+  autocompleteResults,
+  isAutocompleteLoading
 }: {
   item: ExtendedItem;
   index: number;
@@ -108,24 +111,16 @@ const ItemComponent = ({
   handleAddBetween: (previousId: string | null, nextId: string | null) => void;
   isAnyItemEditing: boolean;
   handleSetParent: (itemId: string, parentId: string | null) => Promise<void>;
-  availableParentOptions: (itemId: string) => ExtendedItem[];
   allItems: ExtendedItem[];
+  debouncedSearchAutocomplete: (searchTerm: unknown) => void;
+  autocompleteResults: ExtendedItem[];
+  isAutocompleteLoading: boolean;
 }) => {
   // State for parent search
   const [parentSearchTerm, setParentSearchTerm] = React.useState('');
   const [showParentOptions, setShowParentOptions] = React.useState(false);
 
-  // Filter parent options based on search term
-  const filteredParentOptions = React.useMemo(() => {
-    if (!item.id) return [];
-
-    const options = availableParentOptions(item.id);
-    if (!parentSearchTerm.trim()) return options;
-
-    return options.filter(parent =>
-      parent.title.toLowerCase().includes(parentSearchTerm.toLowerCase())
-    );
-  }, [item.id, availableParentOptions, parentSearchTerm]);
+  // Note: We now use autocomplete results instead of filtered parent options
 
   return (
     <div className="item-wrapper">
@@ -318,7 +313,11 @@ const ItemComponent = ({
                     type="text"
                     placeholder="Search parents..."
                     value={parentSearchTerm}
-                    onChange={(e) => setParentSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setParentSearchTerm(value);
+                      debouncedSearchAutocomplete(value);
+                    }}
                     onFocus={() => setShowParentOptions(true)}
                     onBlur={() => setTimeout(() => setShowParentOptions(false), 200)}
                     style={{
@@ -377,47 +376,51 @@ const ItemComponent = ({
                       No Parent (Root Level)
                     </button>
 
-                    {item.id && filteredParentOptions.length > 0 ? (
-                      filteredParentOptions.map(potentialParent => (
-                        <button
-                          key={potentialParent.id}
-                          className="parent-option"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (item.id && potentialParent.id) {
-                              handleSetParent(item.id, potentialParent.id);
-                            } else {
-                              console.error('Missing item ID or parent ID');
-                            }
-                            // Hide options after selection
-                            const options = e.currentTarget.parentElement as HTMLElement;
-                            if (options) {
-                              options.style.display = 'none';
-                            }
-                          }}
-                          style={{
-                            width: '100%',
-                            textAlign: 'left',
-                            padding: '8px 12px',
-                            backgroundColor: item.parentId === potentialParent.id ? '#f0f0f0' : 'transparent',
-                            fontWeight: item.parentId === potentialParent.id ? 'bold' : 'normal',
-                            borderBottom: '1px solid #eee',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {potentialParent.title}
-                          {potentialParent.childrenCount !== undefined && potentialParent.childrenCount > 0 && (
-                            <span className="children-count" style={{ marginLeft: '8px' }}>
-                              {potentialParent.childrenCount}
-                            </span>
-                          )}
-                        </button>
-                      ))
+                    {isAutocompleteLoading ? (
+                      <p className="no-parents" style={{ padding: '8px 12px' }}>Loading...</p>
+                    ) : autocompleteResults.length > 0 ? (
+                      autocompleteResults
+                        .filter(potentialParent => potentialParent.id !== item.id)
+                        .map(potentialParent => (
+                          <button
+                            key={potentialParent.id}
+                            className="parent-option"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (item.id && potentialParent.id) {
+                                handleSetParent(item.id, potentialParent.id);
+                              } else {
+                                console.error('Missing item ID or parent ID');
+                              }
+                              // Hide options after selection
+                              const options = e.currentTarget.parentElement as HTMLElement;
+                              if (options) {
+                                options.style.display = 'none';
+                              }
+                            }}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              padding: '8px 12px',
+                              backgroundColor: item.parentId === potentialParent.id ? '#f0f0f0' : 'transparent',
+                              fontWeight: item.parentId === potentialParent.id ? 'bold' : 'normal',
+                              borderBottom: '1px solid #eee',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {potentialParent.title}
+                            {potentialParent.childrenCount !== undefined && potentialParent.childrenCount > 0 && (
+                              <span className="children-count" style={{ marginLeft: '8px' }}>
+                                {potentialParent.childrenCount}
+                              </span>
+                            )}
+                          </button>
+                        ))
                     ) : parentSearchTerm.trim() ? (
                       <p className="no-parents" style={{ padding: '8px 12px' }}>No matching parents found</p>
                     ) : (
-                      <p className="no-parents" style={{ padding: '8px 12px' }}>No other items available to use as parent</p>
+                      <p className="no-parents" style={{ padding: '8px 12px' }}>Type to search parents...</p>
                     )}
                   </div>
                 </div>
@@ -463,6 +466,8 @@ function App() {
   const [parentDropdownOpen, setParentDropdownOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [autocompleteResults, setAutocompleteResults] = useState<ExtendedItem[]>([]);
+  const [isAutocompleteLoading, setIsAutocompleteLoading] = useState(false);
 
   // Initialize audio
   useEffect(() => {
@@ -570,7 +575,7 @@ function App() {
     };
   }, []); // Empty dependency array to only set up timer once
 
-  // Fetch all items and setup timer states
+  // Fetch main items list with parent filtering
   const fetchItems = async (parentIds: string[] = currentParentFilters) => {
     try {
       setIsLoading(true);
@@ -589,12 +594,12 @@ function App() {
         url += `?parentId=null`;
       }
 
-      console.log('Fetching with URL:', url);
+      console.log('Fetching main items list with parent filtering:', url);
       const response = await fetch(url);
 
-      if (!response.ok) throw new Error('Failed to fetch items');
+      if (!response.ok) throw new Error('Failed to fetch main items list');
       const data = await response.json();
-      console.log('Received data from backend:', data.length, 'items');
+      console.log('Received main items list from backend:', data.length, 'items');
 
       // Process items to set up timer states
       const processedItems = data.map((item: ExtendedItem) => {
@@ -631,7 +636,7 @@ function App() {
         return item;
       });
 
-      console.log('Setting processed items:', processedItems.length, 'items');
+      console.log('Setting processed main items list:', processedItems.length, 'items');
       const runningItems = processedItems.filter((item: ExtendedItem) => item.isRunning);
       console.log(`Found ${runningItems.length} running timers:`, runningItems.map((i: ExtendedItem) => i.id));
 
@@ -644,11 +649,44 @@ function App() {
         setAllItems(allItemsData);
       }
     } catch (error) {
-      console.error('Error fetching items:', error);
+      console.error('Error fetching main items list:', error);
     } finally {
       setIsLoading(false);
     }
   };
+
+
+
+  // Autocomplete function with debouncing
+  const searchAutocomplete = async (searchTerm: string) => {
+    try {
+      setIsAutocompleteLoading(true);
+
+      // If no query or less than 2 chars, fetch recent filters
+      const url = !searchTerm || searchTerm.trim().length < 2
+        ? `${API_URL}/parents-autocomplete?limit=15`
+        : `${API_URL}/parents-autocomplete?q=${encodeURIComponent(searchTerm)}&limit=15`;
+
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        setAutocompleteResults(data);
+      } else {
+        setAutocompleteResults([]);
+      }
+    } catch (error) {
+      console.error('Error fetching autocomplete results:', error);
+      setAutocompleteResults([]);
+    } finally {
+      setIsAutocompleteLoading(false);
+    }
+  };
+
+  // Debounced autocomplete function
+  const debouncedSearchAutocomplete = useCallback(
+    debounce((searchTerm: unknown) => searchAutocomplete(searchTerm as string), 300),
+    []
+  );
 
   // When a parent is used as a filter, update its lastFilteredAt in the DB
   const updateLastFilteredAt = async (itemId: string) => {
@@ -967,26 +1005,7 @@ function App() {
     return newSortedItems;
   }, [items]); // items is the dependency, but we do manual comparison
 
-  // Memoize parent options to prevent unnecessary re-filtering
-  const availableParentOptions = useCallback((itemId: string) => {
-    console.log('Calculating parent options for item:', itemId);
-
-    // Filter out the current item and any items that have this item as a parent
-    const filteredItems = allItems.filter(potentialParent =>
-      // Don't show the current item as a potential parent
-      potentialParent.id !== itemId &&
-      // Don't show items that already have this item as parent to avoid cycles
-      potentialParent.parentId !== itemId
-    );
-
-    // Sort the filtered items using the same pattern as the filter
-    return filteredItems.sort((a, b) => {
-      // Sort by lastFilteredAt desc (most recent first)
-      const aTime = a.lastFilteredAt ? new Date(a.lastFilteredAt).getTime() : 0;
-      const bTime = b.lastFilteredAt ? new Date(b.lastFilteredAt).getTime() : 0;
-      return bTime - aTime;
-    });
-  }, [allItems]);
+  // Note: Parent options are now handled by autocomplete
 
   const handleAddBetween = (previousId: string | null, nextId: string | null) => {
     console.log('handleAddBetween called with', { previousId, nextId });
@@ -1408,21 +1427,26 @@ function App() {
 
   const isAnyItemEditing = items.some(item => item.isEditing || item.isEditingEstimation || item.isNew);
 
-  // Fetch all items without parent filter
+  // Fetch all items for parent dropdown/top filter
   const fetchAllItems = async () => {
     try {
-      const response = await fetch(`${API_URL}/items`);
-      if (!response.ok) throw new Error('Failed to fetch all items');
+      const response = await fetch(`${API_URL}/parents-autocomplete`);
+      if (!response.ok) throw new Error('Failed to fetch parent dropdown items');
       const data = await response.json();
       setAllItems(data);
     } catch (error) {
-      console.error('Error fetching all items:', error);
+      console.error('Error fetching parent dropdown items:', error);
     }
   };
 
   // Load all items when component mounts
   useEffect(() => {
     fetchAllItems();
+  }, []);
+
+  useEffect(() => {
+    // Fetch recent parents immediately
+    searchAutocomplete('');
   }, []);
 
   return (
@@ -1470,8 +1494,10 @@ function App() {
               placeholder="Type to filter parents..."
               value={parentFilterText}
               onChange={e => {
-                setParentFilterText(e.target.value);
+                const value = e.target.value;
+                setParentFilterText(value);
                 setParentDropdownOpen(true);
+                debouncedSearchAutocomplete(value);
               }}
               onFocus={() => setParentDropdownOpen(true)}
               onBlur={() => setTimeout(() => setParentDropdownOpen(false), 200)}
@@ -1492,85 +1518,47 @@ function App() {
                 overflowY: 'auto',
                 boxShadow: '0 4px 8px rgba(0,0,0,0.08)'
               }}>
-                {allItems
-                  .filter(item => !currentParentFilters.includes(item.id || ''))
-                  .filter(item => {
-                    // Filter by parentFilterText (case-insensitive, matches anywhere in chain)
-                    let parentChain = item.title;
-                    let currentParent = allItems.find(p => p.id === item.parentId);
-                    let depth = 0;
-                    let hasMoreParents = false;
-                    while (currentParent && depth < 2) {
-                      parentChain = `${currentParent.title} → ${parentChain}`;
-                      currentParent = allItems.find(p => p.id === currentParent?.parentId);
-                      depth++;
-                    }
-                    if (currentParent) {
-                      hasMoreParents = true;
-                    }
-                    if (hasMoreParents) {
-                      parentChain = `… → ${parentChain}`;
-                    }
-                    return parentChain.toLowerCase().includes(parentFilterText.toLowerCase());
-                  })
-                  .sort((a, b) => {
-                    // Sort so that items where the match is in the leaf (item.title) come first
-                    const filter = parentFilterText.toLowerCase();
-                    const aOwn = a.title.toLowerCase().includes(filter);
-                    const bOwn = b.title.toLowerCase().includes(filter);
-                    if (aOwn && !bOwn) return -1;
-                    if (!aOwn && bOwn) return 1;
-                    // If both are the same, sort by lastFilteredAt desc (most recent first)
-                    const aTime = a.lastFilteredAt ? new Date(a.lastFilteredAt).getTime() : 0;
-                    const bTime = b.lastFilteredAt ? new Date(b.lastFilteredAt).getTime() : 0;
-                    return bTime - aTime;
-                  })
-                  .map(item => {
-                    // Build parent hierarchy, but limit to 3 levels
-                    let parentChain = item.title;
-                    let currentParent = allItems.find(p => p.id === item.parentId);
-                    let depth = 0;
-                    let hasMoreParents = false;
-                    while (currentParent && depth < 2) {
-                      parentChain = `${currentParent.title} → ${parentChain}`;
-                      currentParent = allItems.find(p => p.id === currentParent?.parentId);
-                      depth++;
-                    }
-                    if (currentParent) {
-                      hasMoreParents = true;
-                    }
-                    if (hasMoreParents) {
-                      parentChain = `… → ${parentChain}`;
-                    }
-                    return (
-                      <div
-                        key={item.id}
-                        style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: 'white' }}
-                        onMouseDown={() => {
-                          toggleParentFilter(item.id!);
-                          setParentFilterText('');
-                          setParentDropdownOpen(false);
-                        }}
-                      >
-                        {parentChain}
-                        {item.childrenCount !== undefined && item.childrenCount > 0 && ` (${item.childrenCount})`}
-                      </div>
-                    );
-                  })
-                }
-                {allItems.filter(item => !currentParentFilters.includes(item.id || ''))
-                  .filter(item => {
-                    let parentChain = item.title;
-                    let currentParent = allItems.find(p => p.id === item.parentId);
-                    let depth = 0;
-                    while (currentParent && depth < 2) {
-                      parentChain = `${currentParent.title} → ${parentChain}`;
-                      currentParent = allItems.find(p => p.id === currentParent?.parentId);
-                      depth++;
-                    }
-                    return parentChain.toLowerCase().includes(parentFilterText.toLowerCase());
-                  }).length === 0 && (
+                {isAutocompleteLoading ? (
+                  <div style={{ padding: '8px 12px', color: '#888' }}>Loading...</div>
+                ) : autocompleteResults.length > 0 ? (
+                  autocompleteResults
+                    .filter(item => !currentParentFilters.includes(item.id || ''))
+                    .map(item => {
+                      // Build parent hierarchy, but limit to 3 levels
+                      let parentChain = item.title;
+                      let currentParent = allItems.find(p => p.id === item.parentId);
+                      let depth = 0;
+                      let hasMoreParents = false;
+                      while (currentParent && depth < 2) {
+                        parentChain = `${currentParent.title} → ${parentChain}`;
+                        currentParent = allItems.find(p => p.id === currentParent?.parentId);
+                        depth++;
+                      }
+                      if (currentParent) {
+                        hasMoreParents = true;
+                      }
+                      if (hasMoreParents) {
+                        parentChain = `… → ${parentChain}`;
+                      }
+                      return (
+                        <div
+                          key={item.id}
+                          style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: 'white' }}
+                          onMouseDown={() => {
+                            toggleParentFilter(item.id!);
+                            setParentFilterText('');
+                            setParentDropdownOpen(false);
+                          }}
+                        >
+                          {parentChain}
+                          {item.childrenCount !== undefined && item.childrenCount > 0 && ` (${item.childrenCount})`}
+                        </div>
+                      );
+                    })
+                ) : parentFilterText.trim() ? (
                   <div style={{ padding: '8px 12px', color: '#888' }}>No matching parents</div>
+                ) : (
+                  <div style={{ padding: '8px 12px', color: '#888' }}>Type to search parents...</div>
                 )}
               </div>
             )}
@@ -1649,8 +1637,10 @@ function App() {
           handleAddBetween={handleAddBetween}
           isAnyItemEditing={isAnyItemEditing}
           handleSetParent={handleSetParent}
-          availableParentOptions={availableParentOptions}
           allItems={allItems}
+          debouncedSearchAutocomplete={debouncedSearchAutocomplete}
+          autocompleteResults={autocompleteResults}
+          isAutocompleteLoading={isAutocompleteLoading}
         />
       ))}
 

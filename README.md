@@ -80,7 +80,7 @@ workstream/
 
 4. Access the application
    - Frontend: http://localhost:5173
-   - Backend API: http://localhost:8080
+   - Backend API: http://localhost:4000
 
 ## Development
 
