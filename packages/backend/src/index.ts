@@ -1,7 +1,7 @@
 import express, { Express, Request, Response, Router } from 'express';
 import cors from 'cors';
 import { db } from './db';
-import algoliasearch from 'algoliasearch';
+import { deleteItemFromAlgolia, isAlgoliaEnabled, searchAlgolia, syncItemToAlgolia } from './services/algolia';
 import * as admin from 'firebase-admin';
 import { Item } from '@workstream/shared';
 
@@ -22,54 +22,7 @@ const router = express.Router() as Router;
 app.use(cors());
 app.use(express.json());
 
-// Algolia setup (optional; enabled when env vars are provided)
-const ALGOLIA_APP_ID = process.env.ALGOLIA_APP_ID;
-const ALGOLIA_API_KEY = process.env.ALGOLIA_API_KEY; // Admin key for indexing
-const ALGOLIA_INDEX_NAME = process.env.ALGOLIA_INDEX_NAME || 'items';
-
-let algoliaIndex: any = null;
-try {
-  if (ALGOLIA_APP_ID && ALGOLIA_API_KEY) {
-    const client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_API_KEY);
-    algoliaIndex = client.initIndex(ALGOLIA_INDEX_NAME);
-    console.log(`Algolia initialized for index ${ALGOLIA_INDEX_NAME}`);
-    // Best-effort default settings
-    (async () => {
-      try {
-        await algoliaIndex.setSettings({
-          searchableAttributes: ['title'],
-          removeWordsIfNoResults: 'allOptional',
-          ignorePlurals: true
-        });
-        console.log('Algolia index settings applied');
-      } catch (e) {
-        console.warn('Algolia setSettings failed:', e);
-      }
-    })();
-  } else {
-    console.log('Algolia not configured (set ALGOLIA_APP_ID and ALGOLIA_API_KEY to enable)');
-  }
-} catch (e) {
-  console.warn('Algolia init failed:', e);
-}
-
-async function syncItemToAlgolia(id: string, data: any) {
-  if (!algoliaIndex) return;
-  try {
-    await algoliaIndex.saveObject({ objectID: id, ...data });
-  } catch (e) {
-    console.warn('Algolia saveObject failed:', e);
-  }
-}
-
-async function deleteItemFromAlgolia(id: string) {
-  if (!algoliaIndex) return;
-  try {
-    await algoliaIndex.deleteObject(id);
-  } catch (e) {
-    console.warn('Algolia deleteObject failed:', e);
-  }
-}
+// Algolia is initialized in services/algolia; helpers imported above
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Workstream API' });
@@ -523,13 +476,10 @@ router.get('/parents-autocomplete', async (req, res) => {
 
     let items: Array<Item & { id: string }> = [];
 
-    if (searchTerm.trim().length >= 2 && algoliaIndex) {
+    if (searchTerm.trim().length >= 2 && isAlgoliaEnabled()) {
       // Query Algolia for contains/infix search
-      const result = await algoliaIndex.search(searchTerm, { hitsPerPage: queryLimit });
-      items = (result.hits as any[]).map(hit => {
-        const { objectID, ...rest } = hit;
-        return { id: objectID as string, ...(rest as any) } as Item & { id: string };
-      });
+      const hits = await searchAlgolia(searchTerm, queryLimit);
+      items = hits as any;
     } else {
       // No filter: order by lastFilteredAt desc
       const snapshot = await db.collection('items')
