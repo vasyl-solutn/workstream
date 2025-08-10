@@ -1,11 +1,9 @@
-import express, { Express, Request, Response, Router, RequestHandler } from 'express';
+import express, { Express, Request, Response, Router } from 'express';
 import cors from 'cors';
 import { db } from './db';
 import algoliasearch from 'algoliasearch';
 import * as admin from 'firebase-admin';
-import { CreateItemDto, Item } from '@workstream/shared';
-import { ParamsDictionary } from 'express-serve-static-core';
-import { DocumentData, Query } from 'firebase-admin/firestore';
+import { Item } from '@workstream/shared';
 
 // Ensure Item type is correctly including startedAt and parentId
 type ItemUpdate = {
