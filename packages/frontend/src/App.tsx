@@ -659,15 +659,15 @@ function App() {
 
   // Autocomplete function with debouncing
   const searchAutocomplete = async (searchTerm: string) => {
-    if (!searchTerm || searchTerm.trim().length < 2) {
-      setAutocompleteResults([]);
-      return;
-    }
-
     try {
       setIsAutocompleteLoading(true);
-      const response = await fetch(`${API_URL}/parents-autocomplete?q=${encodeURIComponent(searchTerm)}&limit=10`);
 
+      // If no query or less than 2 chars, fetch recent filters
+      const url = !searchTerm || searchTerm.trim().length < 2
+        ? `${API_URL}/parents-autocomplete?limit=15`
+        : `${API_URL}/parents-autocomplete?q=${encodeURIComponent(searchTerm)}&limit=15`;
+
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setAutocompleteResults(data);
@@ -1442,6 +1442,11 @@ function App() {
   // Load all items when component mounts
   useEffect(() => {
     fetchAllItems();
+  }, []);
+
+  useEffect(() => {
+    // Fetch recent parents immediately
+    searchAutocomplete('');
   }, []);
 
   return (
