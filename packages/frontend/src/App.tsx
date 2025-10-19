@@ -5,6 +5,8 @@ import Modal from './components/Modal'
 import { IoAdd, IoTrashOutline, IoMove, IoPlay, IoStop } from 'react-icons/io5'
 import { Item, CreateItemDto } from '@workstream/shared'
 import { debounce } from './utils/debounce'
+import { auth, googleProvider } from './firebase'
+import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
 // Timer Display component with its own tick
 const TimerDisplay = ({ seconds, className }: { seconds: number, className: string }) => {
@@ -436,11 +438,17 @@ const ItemComponent = ({
 function App() {
   console.log("App component rendering");
   const renderCount = useRef(0);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
     renderCount.current++;
     console.log(`App rendered ${renderCount.current} times`);
   });
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => setCurrentUser(user));
+    return () => unsub();
+  }, []);
 
   const [items, setItems] = useState<ExtendedItem[]>([])
   const [allItems, setAllItems] = useState<ExtendedItem[]>([])
@@ -1451,6 +1459,16 @@ function App() {
 
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px' }}>
+        {currentUser ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span>{currentUser.email}</span>
+            <button onClick={() => signOut(auth)}>Sign out</button>
+          </div>
+        ) : (
+          <button onClick={() => signInWithPopup(auth, googleProvider)}>Sign in with Google</button>
+        )}
+      </div>
       {isLoading && (
         <div className="loading-overlay">
           <div className="loading-spinner"></div>
