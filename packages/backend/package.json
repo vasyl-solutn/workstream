@@ -13,7 +13,8 @@
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
     "build": "tsc",
-    "test": "jest"
+    "test": "jest",
+    "backfill:owner": "ts-node src/scripts/backfill-ownerId.ts"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

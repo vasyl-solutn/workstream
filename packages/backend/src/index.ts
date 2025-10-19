@@ -20,7 +20,15 @@ const app: Express = express();
 const port = process.env.PORT || 4000;
 const router = express.Router() as Router;
 
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // allow non-browser tools
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // Algolia is initialized in services/algolia; helpers imported above
