@@ -1,6 +1,7 @@
 import express, { Express, Request, Response, Router } from 'express';
 import cors from 'cors';
 import { db } from './db';
+import { requireAuth, AuthenticatedRequest } from './middleware/auth';
 import { deleteItemFromAlgolia, isAlgoliaEnabled, searchAlgolia, syncItemToAlgolia } from './services/algolia';
 import * as admin from 'firebase-admin';
 import { Item } from '@workstream/shared';
@@ -26,6 +27,11 @@ app.use(express.json());
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Workstream API' });
+});
+
+// Protected: return authenticated user info
+app.get('/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  res.json({ user: req.user });
 });
 
 // Example endpoint using Firestore
