@@ -57,16 +57,20 @@ router.get('/api/test', async (req, res) => {
 });
 
 // Get all items
-router.get('/items', requireAuth, async (req, res) => {
+router.get('/items', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const collectionStartTime = performance.now();
     const { parentId } = req.query;
+    const ownerId = req.user!.uid;
 
     let items: Array<Item & { id: string }> = [];
     const parentIds = Array.isArray(parentId) ? parentId : parentId ? [parentId] : [];
 
-    // Option 1: Fetch all and filter by parentIds
-    const snapshot = await db.collection('items').orderBy('priority').get();
+    // Restrict to current owner
+    const snapshot = await db.collection('items')
+      .where('ownerId', '==', ownerId)
+      .orderBy('priority')
+      .get();
     const allItems = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -141,10 +145,11 @@ async function updateChildrenCount(parentId: string | null) {
 }
 
 // Add a new item
-router.post('/items', requireAuth, async (req, res) => {
+router.post('/items', requireAuth, async (req: AuthenticatedRequest, res) => {
   const startTime = performance.now();
   try {
     const { title, estimation, estimationFormat, priority, previousId, nextId, startedAt, parentId } = req.body;
+    const ownerId = req.user!.uid;
 
     if (!title) {
       res.status(400).json({ error: 'Title is required' });
@@ -158,6 +163,7 @@ router.post('/items', requireAuth, async (req, res) => {
       priority: priority || 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       childrenCount: 0, // Initialize children count
+      ownerId,
       ...(startedAt !== undefined && { startedAt }),
       ...(parentId !== undefined && { parentId })
     };
