@@ -247,9 +247,9 @@ router.post('/items', requireAuth, async (req: AuthenticatedRequest, res) => {
 });
 
 // Update an item
-router.put('/items/:id', requireAuth, async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.put('/items/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { title, estimation, estimationFormat, startedAt, parentId } = req.body;
     let { priority } = req.body;
 
@@ -265,6 +265,13 @@ router.put('/items/:id', requireAuth, async (req: Request<{ id: string }>, res: 
 
     if (!item.exists) {
       res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    // Enforce ownership
+    const itemOwnerId = (item.data() as any)?.ownerId;
+    if (!itemOwnerId || itemOwnerId !== req.user!.uid) {
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
 
@@ -322,15 +329,22 @@ router.put('/items/:id', requireAuth, async (req: Request<{ id: string }>, res: 
 });
 
 // Delete an item
-router.delete('/items/:id', requireAuth, async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.delete('/items/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const startTime = performance.now();
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const itemRef = db.collection('items').doc(id);
     const item = await itemRef.get();
 
     if (!item.exists) {
       res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    // Enforce ownership
+    const itemOwnerId = (item.data() as any)?.ownerId;
+    if (!itemOwnerId || itemOwnerId !== req.user!.uid) {
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
 
@@ -356,10 +370,10 @@ router.delete('/items/:id', requireAuth, async (req: Request<{ id: string }>, re
 });
 
 // Move an item
-router.put('/items/:id/move', requireAuth, async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.put('/items/:id/move', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const startTime = performance.now();
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { previousId, nextId, parentId } = req.body;
 
     const itemRef = db.collection('items').doc(id);
@@ -372,6 +386,13 @@ router.put('/items/:id/move', requireAuth, async (req: Request<{ id: string }>, 
 
     // Get old parent ID before update
     const oldParentId = item.data()?.parentId;
+
+    // Enforce ownership
+    const itemOwnerId = (item.data() as any)?.ownerId;
+    if (!itemOwnerId || itemOwnerId !== req.user!.uid) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
 
     let newPriority;
 
