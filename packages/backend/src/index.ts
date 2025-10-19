@@ -57,7 +57,7 @@ router.get('/api/test', async (req, res) => {
 });
 
 // Get all items
-router.get('/items', async (req, res) => {
+router.get('/items', requireAuth, async (req, res) => {
   try {
     const collectionStartTime = performance.now();
     const { parentId } = req.query;
@@ -95,7 +95,7 @@ router.get('/items', async (req, res) => {
 });
 
 // Get a single item
-router.get('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.get('/items/:id', requireAuth, async (req: Request<{ id: string }>, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const itemRef = db.collection('items').doc(id);
@@ -141,7 +141,7 @@ async function updateChildrenCount(parentId: string | null) {
 }
 
 // Add a new item
-router.post('/items', async (req, res) => {
+router.post('/items', requireAuth, async (req, res) => {
   const startTime = performance.now();
   try {
     const { title, estimation, estimationFormat, priority, previousId, nextId, startedAt, parentId } = req.body;
@@ -241,7 +241,7 @@ router.post('/items', async (req, res) => {
 });
 
 // Update an item
-router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.put('/items/:id', requireAuth, async (req: Request<{ id: string }>, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { title, estimation, estimationFormat, startedAt, parentId } = req.body;
@@ -316,7 +316,7 @@ router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
 });
 
 // Delete an item
-router.delete('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.delete('/items/:id', requireAuth, async (req: Request<{ id: string }>, res: Response): Promise<void> => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
@@ -350,7 +350,7 @@ router.delete('/items/:id', async (req: Request<{ id: string }>, res: Response):
 });
 
 // Move an item
-router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.put('/items/:id/move', requireAuth, async (req: Request<{ id: string }>, res: Response): Promise<void> => {
   const startTime = performance.now();
   try {
     const { id } = req.params;
@@ -444,7 +444,7 @@ router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response
 });
 
 // Update lastFilteredAt for an item
-router.patch('/items/:id/last-filtered', async (req: Request<{ id: string }>, res: Response) => {
+router.patch('/items/:id/last-filtered', requireAuth, async (req: Request<{ id: string }>, res: Response) => {
   try {
     const { id } = req.params;
     const { lastFilteredAt } = req.body;
