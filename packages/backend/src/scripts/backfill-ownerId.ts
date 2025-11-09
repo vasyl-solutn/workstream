@@ -4,11 +4,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 async function main() {
-  const targetOwnerId = process.env.BACKFILL_OWNER_UID;
-  if (!targetOwnerId) {
-    console.error('Missing BACKFILL_OWNER_UID env var');
-    process.exit(1);
-  }
+  let targetOwnerId = process.env.BACKFILL_OWNER_UID;
+  const targetOwnerEmail = process.env.BACKFILL_OWNER_EMAIL;
 
   if (!admin.apps.length) {
     admin.initializeApp({
@@ -17,6 +14,17 @@ async function main() {
   }
 
   const db = admin.firestore();
+
+  if (!targetOwnerId && targetOwnerEmail) {
+    console.log(`Resolving UID by email: ${targetOwnerEmail}`);
+    const userRecord = await admin.auth().getUserByEmail(targetOwnerEmail);
+    targetOwnerId = userRecord.uid;
+  }
+
+  if (!targetOwnerId) {
+    console.error('Missing BACKFILL_OWNER_UID or BACKFILL_OWNER_EMAIL env var');
+    process.exit(1);
+  }
 
   console.log(`Backfilling ownerId for items → ${targetOwnerId}`);
 
