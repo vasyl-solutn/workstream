@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import './App.css'
-import { API_URL } from './config/api'
+import { API_URL, authFetch } from './config/api'
 import Modal from './components/Modal'
 import { IoAdd, IoTrashOutline, IoMove, IoPlay, IoStop } from 'react-icons/io5'
 import { Item, CreateItemDto } from '@workstream/shared'
 import { debounce } from './utils/debounce'
+import { auth, googleProvider } from './firebase'
+import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
 // Timer Display component with its own tick
 const TimerDisplay = ({ seconds, className }: { seconds: number, className: string }) => {
@@ -436,11 +438,17 @@ const ItemComponent = ({
 function App() {
   console.log("App component rendering");
   const renderCount = useRef(0);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
     renderCount.current++;
     console.log(`App rendered ${renderCount.current} times`);
   });
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => setCurrentUser(user));
+    return () => unsub();
+  }, []);
 
   const [items, setItems] = useState<ExtendedItem[]>([])
   const [allItems, setAllItems] = useState<ExtendedItem[]>([])
@@ -533,7 +541,7 @@ function App() {
 
             // Update backend
             if (item.id) {
-              fetch(`${API_URL}/items/${item.id}`, {
+              authFetch(`${API_URL}/items/${item.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -595,7 +603,7 @@ function App() {
       }
 
       console.log('Fetching main items list with parent filtering:', url);
-      const response = await fetch(url);
+      const response = await authFetch(url);
 
       if (!response.ok) throw new Error('Failed to fetch main items list');
       const data = await response.json();
@@ -643,7 +651,7 @@ function App() {
       setItems(processedItems);
 
       // Fetch all items for the dropdown
-      const allItemsResponse = await fetch(`${API_URL}/items`);
+      const allItemsResponse = await authFetch(`${API_URL}/items`);
       if (allItemsResponse.ok) {
         const allItemsData = await allItemsResponse.json();
         setAllItems(allItemsData);
@@ -667,7 +675,7 @@ function App() {
         ? `${API_URL}/parents-autocomplete?limit=15`
         : `${API_URL}/parents-autocomplete?q=${encodeURIComponent(searchTerm)}&limit=15`;
 
-      const response = await fetch(url);
+      const response = await authFetch(url);
       if (response.ok) {
         const data = await response.json();
         setAutocompleteResults(data);
@@ -691,7 +699,7 @@ function App() {
   // When a parent is used as a filter, update its lastFilteredAt in the DB
   const updateLastFilteredAt = async (itemId: string) => {
     try {
-      await fetch(`${API_URL}/items/${itemId}/last-filtered`, {
+      await authFetch(`${API_URL}/items/${itemId}/last-filtered`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lastFilteredAt: new Date().toISOString() })
@@ -747,7 +755,7 @@ function App() {
         parentId: parentId
       };
 
-      const response = await fetch(`${API_URL}/items/${itemId}`, {
+      const response = await authFetch(`${API_URL}/items/${itemId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -821,7 +829,7 @@ function App() {
         parentId: currentParentFilters.length > 0 ? currentParentFilters[0] : null
       };
 
-      const response = await fetch(`${API_URL}/items`, {
+      const response = await authFetch(`${API_URL}/items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -884,7 +892,7 @@ function App() {
   const performDelete = async (id: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/items/${id}`, {
+      const response = await authFetch(`${API_URL}/items/${id}`, {
         method: 'DELETE'
       });
 
@@ -905,7 +913,7 @@ function App() {
 
     setIsLoading(true);
     try {
-      await fetch(`${API_URL}/items/${selectedItem}/move`, {
+      await authFetch(`${API_URL}/items/${selectedItem}/move`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1128,7 +1136,7 @@ function App() {
       if (item.isNew) {
         // This is a new item
         console.log('Creating new item');
-        response = await fetch(`${API_URL}/items`, {
+        response = await authFetch(`${API_URL}/items`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1146,7 +1154,7 @@ function App() {
       } else {
         // This is an existing item being edited
         console.log('Updating existing item');
-        response = await fetch(`${API_URL}/items/${item.id}`, {
+        response = await authFetch(`${API_URL}/items/${item.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1288,7 +1296,7 @@ function App() {
     // Update backend with startedAt timestamp
     const updateStartTime = async () => {
       try {
-        const response = await fetch(`${API_URL}/items/${item.id}`, {
+        const response = await authFetch(`${API_URL}/items/${item.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1338,7 +1346,7 @@ function App() {
     // Update backend: save remaining time and reset startedAt
     const updateEstimation = async () => {
       try {
-        const response = await fetch(`${API_URL}/items/${item.id}`, {
+        const response = await authFetch(`${API_URL}/items/${item.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1451,6 +1459,16 @@ function App() {
 
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px' }}>
+        {currentUser ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span>{currentUser.email}</span>
+            <button onClick={() => signOut(auth)}>Sign out</button>
+          </div>
+        ) : (
+          <button onClick={() => signInWithPopup(auth, googleProvider)}>Sign in with Google</button>
+        )}
+      </div>
       {isLoading && (
         <div className="loading-overlay">
           <div className="loading-spinner"></div>

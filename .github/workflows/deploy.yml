@@ -22,6 +22,10 @@ jobs:
       - name: Build
         env:
           VITE_API_URL: ${{ secrets.BACKEND_URL }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
         run: yarn build
 
       - name: Authenticate to Google Cloud
@@ -60,7 +64,7 @@ jobs:
             --platform managed \
             --region ${{ env.GCP_REGION }} \
             --allow-unauthenticated \
-            --set-env-vars ALGOLIA_APP_ID=${{ secrets.ALGOLIA_APP_ID }},ALGOLIA_API_KEY=${{ secrets.ALGOLIA_API_KEY }},ALGOLIA_INDEX_NAME=${{ secrets.ALGOLIA_INDEX_NAME }}
+            --set-env-vars NODE_ENV=production,CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }},ALGOLIA_APP_ID=${{ secrets.ALGOLIA_APP_ID }},ALGOLIA_API_KEY=${{ secrets.ALGOLIA_API_KEY }},ALGOLIA_INDEX_NAME=${{ secrets.ALGOLIA_INDEX_NAME }}
 
       - name: Deploy Frontend to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0

@@ -1,6 +1,7 @@
 import express, { Express, Request, Response, Router } from 'express';
 import cors from 'cors';
 import { db } from './db';
+import { requireAuth, AuthenticatedRequest } from './middleware/auth';
 import { deleteItemFromAlgolia, isAlgoliaEnabled, searchAlgolia, syncItemToAlgolia } from './services/algolia';
 import * as admin from 'firebase-admin';
 import { Item } from '@workstream/shared';
@@ -19,13 +20,26 @@ const app: Express = express();
 const port = process.env.PORT || 4000;
 const router = express.Router() as Router;
 
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // allow non-browser tools
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // Algolia is initialized in services/algolia; helpers imported above
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Workstream API' });
+});
+
+// Protected: return authenticated user info
+app.get('/auth/me', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  res.json({ user: req.user });
 });
 
 // Example endpoint using Firestore
@@ -51,16 +65,20 @@ router.get('/api/test', async (req, res) => {
 });
 
 // Get all items
-router.get('/items', async (req, res) => {
+router.get('/items', requireAuth, async (req: AuthenticatedRequest, res) => {
   try {
     const collectionStartTime = performance.now();
     const { parentId } = req.query;
+    const ownerId = req.user!.uid;
 
     let items: Array<Item & { id: string }> = [];
     const parentIds = Array.isArray(parentId) ? parentId : parentId ? [parentId] : [];
 
-    // Option 1: Fetch all and filter by parentIds
-    const snapshot = await db.collection('items').orderBy('priority').get();
+    // Restrict to current owner
+    const snapshot = await db.collection('items')
+      .where('ownerId', '==', ownerId)
+      .orderBy('priority')
+      .get();
     const allItems = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -89,7 +107,7 @@ router.get('/items', async (req, res) => {
 });
 
 // Get a single item
-router.get('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.get('/items/:id', requireAuth, async (req: Request<{ id: string }>, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const itemRef = db.collection('items').doc(id);
@@ -135,10 +153,11 @@ async function updateChildrenCount(parentId: string | null) {
 }
 
 // Add a new item
-router.post('/items', async (req, res) => {
+router.post('/items', requireAuth, async (req: AuthenticatedRequest, res) => {
   const startTime = performance.now();
   try {
     const { title, estimation, estimationFormat, priority, previousId, nextId, startedAt, parentId } = req.body;
+    const ownerId = req.user!.uid;
 
     if (!title) {
       res.status(400).json({ error: 'Title is required' });
@@ -152,6 +171,7 @@ router.post('/items', async (req, res) => {
       priority: priority || 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       childrenCount: 0, // Initialize children count
+      ownerId,
       ...(startedAt !== undefined && { startedAt }),
       ...(parentId !== undefined && { parentId })
     };
@@ -235,9 +255,9 @@ router.post('/items', async (req, res) => {
 });
 
 // Update an item
-router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.put('/items/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { title, estimation, estimationFormat, startedAt, parentId } = req.body;
     let { priority } = req.body;
 
@@ -253,6 +273,13 @@ router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
 
     if (!item.exists) {
       res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    // Enforce ownership
+    const itemOwnerId = (item.data() as any)?.ownerId;
+    if (!itemOwnerId || itemOwnerId !== req.user!.uid) {
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
 
@@ -310,15 +337,22 @@ router.put('/items/:id', async (req: Request<{ id: string }>, res: Response): Pr
 });
 
 // Delete an item
-router.delete('/items/:id', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.delete('/items/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const startTime = performance.now();
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const itemRef = db.collection('items').doc(id);
     const item = await itemRef.get();
 
     if (!item.exists) {
       res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+
+    // Enforce ownership
+    const itemOwnerId = (item.data() as any)?.ownerId;
+    if (!itemOwnerId || itemOwnerId !== req.user!.uid) {
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
 
@@ -344,10 +378,10 @@ router.delete('/items/:id', async (req: Request<{ id: string }>, res: Response):
 });
 
 // Move an item
-router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.put('/items/:id/move', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const startTime = performance.now();
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { previousId, nextId, parentId } = req.body;
 
     const itemRef = db.collection('items').doc(id);
@@ -360,6 +394,13 @@ router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response
 
     // Get old parent ID before update
     const oldParentId = item.data()?.parentId;
+
+    // Enforce ownership
+    const itemOwnerId = (item.data() as any)?.ownerId;
+    if (!itemOwnerId || itemOwnerId !== req.user!.uid) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
 
     let newPriority;
 
@@ -438,7 +479,7 @@ router.put('/items/:id/move', async (req: Request<{ id: string }>, res: Response
 });
 
 // Update lastFilteredAt for an item
-router.patch('/items/:id/last-filtered', async (req: Request<{ id: string }>, res: Response) => {
+router.patch('/items/:id/last-filtered', requireAuth, async (req: Request<{ id: string }>, res: Response) => {
   try {
     const { id } = req.params;
     const { lastFilteredAt } = req.body;
