@@ -64,7 +64,7 @@ jobs:
             --platform managed \
             --region ${{ env.GCP_REGION }} \
             --allow-unauthenticated \
-            --set-env-vars=^:^NODE_ENV=production:CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}:ALGOLIA_APP_ID=${{ secrets.ALGOLIA_APP_ID }}:ALGOLIA_API_KEY=${{ secrets.ALGOLIA_API_KEY }}:ALGOLIA_INDEX_NAME=${{ secrets.ALGOLIA_INDEX_NAME }}
+            --set-env-vars=^;^NODE_ENV=production;CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }};ALGOLIA_APP_ID=${{ secrets.ALGOLIA_APP_ID }};ALGOLIA_API_KEY=${{ secrets.ALGOLIA_API_KEY }};ALGOLIA_INDEX_NAME=${{ secrets.ALGOLIA_INDEX_NAME }}
 
       - name: Deploy Frontend to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
