@@ -1463,10 +1463,32 @@ function App() {
         {currentUser ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span>{currentUser.email}</span>
-            <button onClick={() => signOut(auth)}>Sign out</button>
+            <button
+              onClick={() => signOut(auth)}
+              style={{
+                backgroundColor: '#3b82f6',
+                color: '#ffffff',
+                border: '1px solid #1d4ed8',
+                padding: '6px 12px',
+                borderRadius: 8
+              }}
+            >
+              Sign out
+            </button>
           </div>
         ) : (
-          <button onClick={() => signInWithPopup(auth, googleProvider)}>Sign in with Google</button>
+          <button
+            onClick={() => signInWithPopup(auth, googleProvider)}
+            style={{
+              backgroundColor: '#3b82f6',
+              color: '#ffffff',
+              border: '1px solid #1d4ed8',
+              padding: '6px 12px',
+              borderRadius: 8
+            }}
+          >
+            Sign in with Google
+          </button>
         )}
       </div>
       {isLoading && (
