@@ -244,9 +244,9 @@ router.post('/items', requireAuth, async (req: AuthenticatedRequest, res) => {
       });
     }
 
-    // After creating the item, update parent's children count if it has a parent
+    // After creating the item, update parent's children count if it has a parent (non-blocking)
     if (parentId) {
-      await updateChildrenCount(parentId);
+      updateChildrenCount(parentId).catch(err => console.error('childrenCount update failed (create)', err));
     }
 
     console.info(`Database insert took ${(performance.now() - startTime).toFixed(2)}ms`);
@@ -321,14 +321,11 @@ router.put('/items/:id', requireAuth, async (req: AuthenticatedRequest, res: Res
     });
 
     if (oldParentId !== parentId) {
-      // Update children count for both old and new parent
-      if (oldParentId) {
-        await updateChildrenCount(oldParentId);
-      }
-
-      if (parentId) {
-        await updateChildrenCount(parentId);
-      }
+      // Update children count for both old and new parent (parallel, non-blocking)
+      const updates: Promise<void>[] = [];
+      if (oldParentId) updates.push(updateChildrenCount(oldParentId));
+      if (parentId) updates.push(updateChildrenCount(parentId));
+      Promise.all(updates).catch(err => console.error('childrenCount update failed (update)', err));
     }
 
     console.info(`Database update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
@@ -373,9 +370,9 @@ router.delete('/items/:id', requireAuth, async (req: AuthenticatedRequest, res: 
     // Remove from Algolia
     await deleteItemFromAlgolia(id);
 
-    // Update parent's children count
+    // Update parent's children count (non-blocking)
     if (parentId) {
-      await updateChildrenCount(parentId);
+      updateChildrenCount(parentId).catch(err => console.error('childrenCount update failed (delete)', err));
     }
 
     console.info(`Database delete took ${(performance.now() - startTime).toFixed(2)}ms`);
@@ -463,14 +460,12 @@ router.put('/items/:id/move', requireAuth, async (req: AuthenticatedRequest, res
 
     await itemRef.update(updateData);
 
-    // Update children count for both old and new parent
+    // Update children count for both old and new parent (parallel, non-blocking)
     if (oldParentId !== parentId) {
-      if (oldParentId) {
-        await updateChildrenCount(oldParentId);
-      }
-      if (parentId) {
-        await updateChildrenCount(parentId);
-      }
+      const updates: Promise<void>[] = [];
+      if (oldParentId) updates.push(updateChildrenCount(oldParentId));
+      if (parentId) updates.push(updateChildrenCount(parentId));
+      Promise.all(updates).catch(err => console.error('childrenCount update failed (move)', err));
     }
 
     console.info(`Database move took ${(performance.now() - startTime).toFixed(2)}ms`);
