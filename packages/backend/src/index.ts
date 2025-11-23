@@ -146,10 +146,20 @@ async function updateChildrenCount(parentId: string | null) {
   console.log({ parentId, childrenCount });
 
   const parentTime = performance.now();
-  await db.collection('items').doc(parentId).update({
-    childrenCount
-  });
-  console.info(`Database update children count took ${(performance.now() - parentTime).toFixed(2)}ms`);
+  try {
+    const parentRef = db.collection('items').doc(parentId);
+    const parentDoc = await parentRef.get();
+    if (!parentDoc.exists) {
+      console.warn(`Parent ${parentId} not found; skipping childrenCount update`);
+      return;
+    }
+    await parentRef.update({
+      childrenCount
+    });
+    console.info(`Database update children count took ${(performance.now() - parentTime).toFixed(2)}ms`);
+  } catch (e) {
+    console.error('Failed to update children count for parent', parentId, e);
+  }
 }
 
 // Add a new item
