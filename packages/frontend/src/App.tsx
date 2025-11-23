@@ -654,12 +654,6 @@ function App() {
 
       setItems(processedItems);
 
-      // Fetch all items for the dropdown
-      const allItemsResponse = await authFetch(`${API_URL}/items`);
-      if (allItemsResponse.ok) {
-        const allItemsData = await allItemsResponse.json();
-        setAllItems(allItemsData);
-      }
     } catch (error) {
       console.error('Error fetching main items list:', error);
     } finally {
