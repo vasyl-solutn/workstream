@@ -439,6 +439,7 @@ function App() {
   console.log("App component rendering");
   const renderCount = useRef(0);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     renderCount.current++;
@@ -446,7 +447,10 @@ function App() {
   });
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => setCurrentUser(user));
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthReady(true);
+    });
     return () => unsub();
   }, []);
 
@@ -863,11 +867,13 @@ function App() {
     }
   };
 
-  // Load items on initial render
+  // Load items once auth state is known and user is present
   useEffect(() => {
-    console.log("Initial items load triggered");
-    fetchItems()
-  }, [])  // Empty dependency array means this runs once on mount
+    if (authReady && currentUser) {
+      console.log("Initial items load triggered (auth ready)");
+      fetchItems();
+    }
+  }, [authReady, currentUser])
 
   // Delete an item
   const deleteItem = async (id: string | undefined) => {
@@ -1438,7 +1444,7 @@ function App() {
   // Fetch all items for parent dropdown/top filter
   const fetchAllItems = async () => {
     try {
-      const response = await fetch(`${API_URL}/parents-autocomplete`);
+      const response = await authFetch(`${API_URL}/parents-autocomplete`);
       if (!response.ok) throw new Error('Failed to fetch parent dropdown items');
       const data = await response.json();
       setAllItems(data);
@@ -1447,15 +1453,19 @@ function App() {
     }
   };
 
-  // Load all items when component mounts
+  // Load all items for parent dropdown once authenticated
   useEffect(() => {
-    fetchAllItems();
-  }, []);
+    if (authReady && currentUser) {
+      fetchAllItems();
+    }
+  }, [authReady, currentUser]);
 
   useEffect(() => {
-    // Fetch recent parents immediately
-    searchAutocomplete('');
-  }, []);
+    // Fetch recent parents once authenticated
+    if (authReady && currentUser) {
+      searchAutocomplete('');
+    }
+  }, [authReady, currentUser]);
 
   return (
     <div className="items-grid" onClick={handleOutsideClick}>
