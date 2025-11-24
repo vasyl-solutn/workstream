@@ -59,6 +59,8 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GCP_REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
         run: |
+          set -euo pipefail
+
           # Write env vars to a file to avoid shell parsing of commas, semicolons, or pipes
           cat > cloudrun.env <<'EOF'
           NODE_ENV=production
@@ -76,6 +78,7 @@ jobs:
             --env-vars-file cloudrun.env
 
       - name: Deploy Frontend to Firebase
+        if: ${{ success() }}
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
