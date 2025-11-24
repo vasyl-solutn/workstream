@@ -522,7 +522,11 @@ router.get('/parents-autocomplete', async (req, res) => {
 
     let items: Array<Item & { id: string }> = [];
 
-    if (searchTerm.trim().length >= 2 && isAlgoliaEnabled()) {
+    if (searchTerm.trim().length >= 2) {
+      if (!isAlgoliaEnabled()) {
+        res.status(503).json({ error: 'Algolia search is not configured. Set ALGOLIA_APP_ID and ALGOLIA_API_KEY to enable search.' });
+        return;
+      }
       // Query Algolia for contains/infix search
       const hits = await searchAlgolia(searchTerm, queryLimit);
       items = hits as any;
