@@ -516,22 +516,39 @@ const ITEMS_LIMIT = 15;
 router.get('/parents-autocomplete', async (req, res) => {
   try {
     const collectionStartTime = performance.now();
-    const { q, limit = ITEMS_LIMIT } = req.query;
-    const searchTerm = (q as string) || '';
+    const { limit = ITEMS_LIMIT } = req.query as any;
+    const rawQ: unknown = (req.query as any).q;
+    const searchTerm: string = typeof rawQ === 'string' ? rawQ : Array.isArray(rawQ) ? (rawQ[0] ?? '') : '';
     const queryLimit = Math.min(Number(limit), ITEMS_LIMIT);
+    const algoliaEnabled = isAlgoliaEnabled();
+
+    console.info('[parents-autocomplete] incoming', {
+      query: req.query,
+      rawQ,
+      searchTerm,
+      length: searchTerm.trim().length,
+      queryLimit,
+      algoliaEnabled
+    });
 
     let items: Array<Item & { id: string }> = [];
 
     if (searchTerm.trim().length >= 2) {
-      if (!isAlgoliaEnabled()) {
+      if (!algoliaEnabled) {
+        console.warn('[parents-autocomplete] Algolia disabled; rejecting search request');
         res.status(503).json({ error: 'Algolia search is not configured. Set ALGOLIA_APP_ID and ALGOLIA_API_KEY to enable search.' });
         return;
       }
       // Query Algolia for contains/infix search
-      const hits = await searchAlgolia(searchTerm, queryLimit);
+      console.info('[parents-autocomplete] using Algolia search', { searchTerm, queryLimit });
+      const hits = await searchAlgolia(searchTerm, queryLimit).catch((e) => {
+        console.error('[parents-autocomplete] Algolia error', e);
+        throw e;
+      });
       items = hits as any;
     } else {
       // No filter: order by lastFilteredAt desc
+      console.info('[parents-autocomplete] no search term (or <2 chars); returning recent parents', { queryLimit });
       const snapshot = await db.collection('items')
         .orderBy('lastFilteredAt', 'desc')
         .limit(queryLimit)
@@ -543,7 +560,7 @@ router.get('/parents-autocomplete', async (req, res) => {
     console.info(`Parents-autocomplete: ${(performance.now() - collectionStartTime).toFixed(2)}ms, ${items.length} items`);
     res.json(items);
   } catch (error) {
-    console.error('Error fetching items:', error);
+    console.error('Error fetching items (parents-autocomplete):', error);
     res.status(500).json({ error: 'Failed to fetch items' });
   }
 });
